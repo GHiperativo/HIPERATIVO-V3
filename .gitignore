@@ -1,0 +1,8 @@
+*.env
+.env*
+secrets/
+credentials.json
+node_modules/
+__pycache__/
+.DS_Store
+.vscode/
