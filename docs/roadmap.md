@@ -6,7 +6,9 @@
 - [ ] Configurar STRAVA_CLIENT_SECRET (ação do admin)
 - [ ] Teste end-to-end: cadastro + conexão Strava
 - [ ] Reconectar atletas (tokens expirados)
-- [ ] Corrigir PAINEL rows 11-20
+- [x] Adicionar fallback manual por múltipla escolha para métricas sem dados
+- [ ] Revisar atletas com confiança baixa em `📈 MÉTRICAS`
+- [ ] Corrigir fórmulas remanescentes do PAINEL que misturam sintaxe pt-BR/EN
 - [ ] Resolver duplicata Cynara Costa
 - [ ] Versionar scripts neste repositório
 
@@ -15,6 +17,7 @@
 - [ ] sincronizarResumoComHubMaster()
 - [ ] Migrar atletas V3 → HUB CRM
 - [ ] Exportação SISRUN funcional
+- [ ] Painel de acompanhamento para atletas sem treino recente
 
 ## Longo Prazo
 - [ ] Dashboard administrativo
