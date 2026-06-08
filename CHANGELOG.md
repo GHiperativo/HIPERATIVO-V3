@@ -5,9 +5,9 @@
 - Campos de fallback manual na aba `📈 MÉTRICAS`: perfil, volume, intensidade, origem, confiança e observações.
 - Cálculo de métricas com estimativa guiada por múltipla escolha quando não há corridas recentes válidas.
 - Constantes `H.MET` para reduzir risco de erro por coluna hardcoded.
+- Script complementar `MetricasFallbackSetup.gs` para configurar os campos manuais de métricas sem alterar o fluxo Strava.
 
 ### Changed
-- Setup da planilha alinhado à estrutura real das abas `👤 CADASTRO`, `🏃 ATIVIDADES` e `📈 MÉTRICAS`.
 - Documentação atualizada com resumo do projeto, estrutura de planilhas e melhorias sugeridas.
 
 ### Notes
