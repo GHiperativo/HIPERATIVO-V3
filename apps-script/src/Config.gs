@@ -85,6 +85,34 @@ const H = {
     IMPORTADO:24,
   },
 
+  // ── Colunas da aba MÉTRICAS (1-indexed) ──────────────────────────────────
+  MET: {
+    ATH_ID:       1,
+    NOME:         2,
+    ATUALIZADO:   3,
+    VO2:          4,
+    PACE_MED:     5,
+    PACE_RAP:     6,
+    PACE_LENTO:   7,
+    FC_MAX:       8,
+    FC_MED:       9,
+    VOL_SEM:     10,
+    Z1_LENTO:    11,
+    Z1_RAPIDO:   12,
+    Z2_LENTO:    13,
+    Z2_RAPIDO:   14,
+    Z3_LENTO:    15,
+    Z3_RAPIDO:   16,
+    Z4_LENTO:    17,
+    Z5_MIN:      18,
+    PERFIL_MAN:  19,
+    VOLUME_MAN:  20,
+    INTENS_MAN:  21,
+    ORIGEM:      22,
+    CONFIANCA:   23,
+    OBS:         24,
+  },
+
   // ── Colunas da aba TOKENS (1-indexed) ─────────────────────────────────────
   TOK: {
     EXEC_ID:  1,
