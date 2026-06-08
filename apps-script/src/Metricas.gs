@@ -41,10 +41,8 @@ function _calcularMetricasAtleta(athId) {
                && String(r[H.ATIV.TIPO - 1]) === 'Corrida'
                && Number(r[H.ATIV.PACE_S - 1]) > 0);
 
-  // Nível de fallback (sem dados)
-  const nivel    = _getNivelAtleta(athId);
-  const fallback = { iniciante: 32, intermediário: 42, avançado: 52 };
-  const vo2base  = fallback[nivel.toLowerCase()] || 42;
+  const registroAtual = _getRegistroMetrica(wsMet, athId);
+  const manual = _resolverPerfilManual(athId, registroAtual);
 
   let paceMed = 0, paceRap = 9999, paceLento = 0;
   let fcMaxArr = [], fcMedArr = [], distArr = [];
@@ -60,12 +58,18 @@ function _calcularMetricasAtleta(athId) {
   const nRows = rows.length;
   if (nRows > 0) paceMed = Math.round(paceMed / nRows); else { paceMed = 0; paceRap = 0; paceLento = 0; }
 
-  const fcMax = fcMaxArr.length ? Math.round(Math.max(...fcMaxArr)) : (nivel === 'iniciante' ? 175 : nivel === 'avançado' ? 188 : 182);
+  if (nRows === 0) {
+    paceMed   = manual.paceMed;
+    paceRap   = manual.paceRap;
+    paceLento = manual.paceLento;
+  }
+
+  const fcMax = fcMaxArr.length ? Math.round(Math.max(...fcMaxArr)) : manual.fcMax;
   const fcMed = fcMedArr.length ? Math.round(fcMedArr.reduce((a, b) => a + b, 0) / fcMedArr.length) : Math.round(fcMax * 0.83);
-  const volSem = distArr.length ? Math.round(distArr.reduce((a, b) => a + b, 0) / (28 / 7) * 10) / 10 : 0;
+  const volSem = distArr.length ? Math.round(distArr.reduce((a, b) => a + b, 0) / (28 / 7) * 10) / 10 : manual.volSem;
 
   // VO2máx estimado (fórmula simplificada: velocidade × coeficiente de FC)
-  let vo2 = vo2base;
+  let vo2 = manual.vo2;
   if (paceMed > 0 && fcMed && fcMax) {
     const vel = 60 / paceMed; // km/min
     const pct = (fcMed - 60) / (fcMax - 60);
@@ -73,19 +77,109 @@ function _calcularMetricasAtleta(athId) {
   }
 
   // Salvar na aba MÉTRICAS
-  const linha = [athId, _getNomeAtleta(athId), new Date(), vo2, paceMed, paceRap, paceLento, fcMax, fcMed, volSem];
+  const origem = nRows > 0 ? `Atividades 28d (${nRows})` : manual.origem;
+  const confianca = nRows >= 3 ? 'Alta' : nRows > 0 ? 'Média' : 'Baixa';
+  const metricasBase = [athId, _getNomeAtleta(athId), new Date(), vo2, paceMed, paceRap, paceLento, fcMax, fcMed, volSem];
+  const metricasManuais = [manual.perfil, manual.volume, manual.intensidade, origem, confianca, manual.obs];
   const rowsMet = wsMet.getDataRange().getValues();
 
   for (let i = 2; i < rowsMet.length; i++) {
     if (String(rowsMet[i][H.MET.ATH_ID - 1]) === athId) {
-      wsMet.getRange(i + 1, 1, 1, linha.length).setValues([linha]);
+      wsMet.getRange(i + 1, 1, 1, metricasBase.length).setValues([metricasBase]);
+      wsMet.getRange(i + 1, H.MET.PERFIL_MAN, 1, metricasManuais.length).setValues([metricasManuais]);
       _log(athId, 'INFO', '_calcularMetricasAtleta', `VO2máx: ${vo2}, Pace médio: ${paceMed}s/km`, '');
       return;
     }
   }
   const linhaVazia = _primeiraLinhaVazia(wsMet, H.MET.ATH_ID);
-  wsMet.getRange(linhaVazia, 1, 1, linha.length).setValues([linha]);
+  wsMet.getRange(linhaVazia, 1, 1, metricasBase.length).setValues([metricasBase]);
+  wsMet.getRange(linhaVazia, H.MET.PERFIL_MAN, 1, metricasManuais.length).setValues([metricasManuais]);
   _log(athId, 'INFO', '_calcularMetricasAtleta', `Novo registro — VO2máx: ${vo2}`, '');
+}
+
+function _getRegistroMetrica(wsMet, athId) {
+  const rows = wsMet.getDataRange().getValues();
+  for (let i = 2; i < rows.length; i++) {
+    if (String(rows[i][H.MET.ATH_ID - 1]) === athId) return rows[i];
+  }
+  return [];
+}
+
+function _resolverPerfilManual(athId, registroAtual) {
+  const nivel = _getNivelAtleta(athId);
+  const perfil = _normalizarPerfilManual(registroAtual[H.MET.PERFIL_MAN - 1] || nivel);
+  const volume = String(registroAtual[H.MET.VOLUME_MAN - 1] || _getFreqAtleta(athId) || 'Moderado').trim();
+  const intensidade = String(registroAtual[H.MET.INTENS_MAN - 1] || 'Moderado').trim();
+
+  const perfilBase = {
+    'Iniciante':      { vo2: 32, fcMax: 175, pace: 480 },
+    'Intermediário':  { vo2: 42, fcMax: 182, pace: 390 },
+    'Avançado':       { vo2: 52, fcMax: 188, pace: 330 },
+    'Retorno/lesão':  { vo2: 30, fcMax: 172, pace: 520 },
+  };
+  const volumeBase = {
+    'Baixo': 8,
+    'Moderado': 18,
+    'Alto': 32,
+    'Muito alto': 45,
+  };
+  const intensidadeAjuste = {
+    'Leve': 1.08,
+    'Moderado': 1,
+    'Forte': 0.94,
+    'Competitivo': 0.88,
+  };
+
+  const base = perfilBase[perfil] || perfilBase[_normalizarNivel(nivel)] || perfilBase['Intermediário'];
+  const ajuste = intensidadeAjuste[intensidade] || 1;
+  const paceMed = Math.round(base.pace * ajuste);
+
+  return {
+    perfil,
+    volume,
+    intensidade,
+    vo2: base.vo2,
+    fcMax: base.fcMax,
+    paceMed,
+    paceRap: Math.round(paceMed * 0.90),
+    paceLento: Math.round(paceMed * 1.18),
+    volSem: volumeBase[volume] || 18,
+    origem: 'Perfil manual sem dados recentes',
+    obs: 'Estimativa por múltipla escolha; revisar após 3 treinos válidos.'
+  };
+}
+
+function _normalizarNivel(nivel) {
+  const n = String(nivel || '').toLowerCase();
+  if (n.indexOf('inic') >= 0) return 'Iniciante';
+  if (n.indexOf('avan') >= 0 || n.indexOf('avanç') >= 0) return 'Avançado';
+  return 'Intermediário';
+}
+
+function _normalizarPerfilManual(perfil) {
+  const p = String(perfil || '').toLowerCase();
+  if (p.indexOf('retorno') >= 0 || p.indexOf('les') >= 0) return 'Retorno/lesão';
+  return _normalizarNivel(perfil);
+}
+
+function _getFreqAtleta(athId) {
+  const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CADASTRO);
+  if (!ws) return 'Moderado';
+  const rows = ws.getDataRange().getValues().slice(2);
+  const r = rows.find(row => String(row[H.CAD.ID - 1]) === athId);
+  const freq = r ? String(r[H.CAD.FREQ - 1]) : '';
+  if (/1|2|baixo/i.test(freq)) return 'Baixo';
+  if (/5|6|alto/i.test(freq)) return 'Alto';
+  return 'Moderado';
+}
+
+function _primeiraLinhaVazia(ws, col) {
+  const lastRow = Math.max(ws.getLastRow(), 3);
+  const values = ws.getRange(3, col, lastRow - 2, 1).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (!values[i][0]) return i + 3;
+  }
+  return lastRow + 1;
 }
 
 function _getNivelAtleta(athId) {
