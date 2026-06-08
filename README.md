@@ -44,8 +44,23 @@ HIPERATIVO-V3/
 | OAuth Strava | ✅ OK |
 | Importação automática (4h) | ✅ Ativo |
 | Tokens em PropertiesService | ✅ OK |
+| Métricas com fallback manual | ✅ Ativo |
 | Integração SISRUN | 🔄 Em dev |
 | Dashboard admin | ⏳ Pendente |
 
+## Resumo Atual
+
+O HIPERATIVO V3 é um sistema de gestão de atletas baseado em Google Sheets e Apps Script. A planilha é o banco operacional, o Apps Script concentra cadastro, automações, métricas, prescrições e exportações, e a integração Strava permanece como fonte automática de atividades quando o atleta autoriza a conexão.
+
+Quando não há atividades recentes suficientes, a aba `📈 MÉTRICAS` agora aceita dados guiados por múltipla escolha: perfil manual, volume manual e intensidade manual. Esses campos alimentam estimativas de VO2, pace, frequência cardíaca e volume semanal até existirem treinos válidos para substituir a estimativa.
+
+## Próximas Melhorias Sugeridas
+
+- Criar um fluxo visual para revisar atletas com confiança `Baixa` nas métricas.
+- Adicionar alertas por e-mail quando um atleta ficar mais de 14 dias sem treino.
+- Concluir a exportação SISRUN com validação prévia de zonas e prescrições.
+- Remover segredos hardcoded do histórico/código e manter somente em `PropertiesService`.
+- Criar testes manuais documentados para cadastro, cálculo de métricas e exportação.
+
 ---
-*Responsável: Crhystiano Heliodoro — contato@ghiperativo.com.br | 05/06/2026*
+*Responsável: Crhystiano Heliodoro — contato@ghiperativo.com.br | atualizado em 08/06/2026*
