@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════
- * HIPERATIVO V3 — Config.gs  (v4.0 — menu expandido 04/06/2026)
- * Constantes globais, menu, log, trigger e configurações
+ * HIPERATIVO V3 — CONFIG.GS
+ * Menu, constantes globais e setup inicial
  * ═══════════════════════════════════════════════════════════════════════
  */
 
@@ -18,632 +18,525 @@ const H = {
     ERROS:     '🔴 ERROS',
     TOKENS:    '🔐 TOKENS',
     CONFIG:    '⚙️ CONFIG',
+    RANKING:   '🏆 RANKING',
+    INPUT_MANUAL: '📝 INPUT MANUAL',
+    DESAFIOS:  '🎯 DESAFIOS',
+    DESAFIOS_PROGRESSO: '📊 DESAFIOS_PROGRESSO',
   },
 
-  // ── Colunas da aba CADASTRO (1-indexed) — v3.2 expandido ──────────────────
-  // Col:  1     2      3       4       5      6      7      8        9
-  // Col:  ID   NOME  EMAIL  WHATS   NASC   SEXO   PESO  ALTURA   MOD
-  // Col: 10     11     12      13      14     15     16     17     18
-  // Col: NIVEL   OBJ  FREQ  HORARIO  SAUDE  LESAO  MED   PROVA  PLANO
-  // Col: 19     20      21     22        23      24     25     26
-  // Col: CIDADE ESTADO  CPF  ORIGEM  DATA_CAD STRAVA_OK STRAVA_ID STATUS OBS
+  // Colunas da aba CADASTRO (1-indexed)
   CAD: {
-    ID:        1,
-    NOME:      2,
-    EMAIL:     3,
-    WHATS:     4,
-    NASC:      5,
-    SEXO:      6,
-    PESO:      7,
-    ALTURA:    8,
-    MOD:       9,
-    NIVEL:    10,
-    OBJ:      11,
-    FREQ:     12,
-    HORARIO:  13,
-    SAUDE:    14,
-    LESAO:    15,
-    MED:      16,
-    PROVA:    17,
-    PLANO:    18,
-    CIDADE:   19,
-    ESTADO:   20,
-    CPF:      21,
-    ORIGEM:   22,
-    DATA_CAD: 23,
-    STRAVA_OK:24,
-    STRAVA_ID:25,
-    STATUS:   26,
-    OBS:      27,
+    ID: 1, NOME: 2, EMAIL: 3, WHATS: 4, NASC: 5,
+    SEXO: 6, PESO: 7, MOD: 8, NIVEL: 9, OBJ: 10,
+    FREQ: 11, HORARIO: 12, SAUDE: 13, LESAO: 14,
+    PLANO: 15, ORIGEM: 16, DATA_CAD: 17,
+    STRAVA_OK: 18, STRAVA_ID: 19, STATUS: 20, OBS: 21,
+    INTERVALS_ID: 22,
   },
 
-  // ── Colunas da aba ATIVIDADES (1-indexed) ─────────────────────────────────
+  // Colunas da aba ATIVIDADES (1-indexed)
   ATIV: {
-    EXEC_ID:  1,
-    ATH_ID:   2,
-    NOME:     3,
-    DATA:     4,
-    TIPO:     5,
-    FONTE:    6,
-    STRAVA_ID:7,
-    NOME_ATIV:8,
-    MOV_S:    9,
-    TOTAL_S: 10,
-    DIST_M:  11,
-    DIST_KM: 12,
-    VEL_MPS: 13,
-    VEL_KMH: 14,
-    PACE_S:  15,
-    PACE_MS: 16,
-    FC_MED:  17,
-    FC_MAX:  18,
-    ELEV:    19,
-    CAL:     20,
-    CADENCIA:21,
-    POTENCIA:22,
-    ROTA:    23,
-    IMPORTADO:24,
+    // ── Identificação ──────────────────────────────────────────────────────
+    EXEC_ID: 1, ATH_ID: 2, NOME: 3, DATA: 4, TIPO: 5,
+    FONTE: 6, STRAVA_ID: 7, NOME_ATIV: 8,
+    // ── Tempo (hh:mm:ss) ──────────────────────────────────────────────────
+    MOV_HMS: 9,     // Tempo de Movimentação (hh:mm:ss)
+    TOTAL_HMS: 10,  // Tempo Total          (hh:mm:ss)
+    // ── Distância ─────────────────────────────────────────────────────────
+    DIST_M: 11,     // metros (1 decimal)
+    DIST_KM: 12,    // km (1 decimal)
+    // ── Velocidade e Pace ─────────────────────────────────────────────────
+    VEL_KMH: 13,    // km/h (1 decimal)
+    PACE_S: 14,     // s/km  (usado nas fórmulas do painel)
+    PACE_MS: 15,    // min:ss/km (texto)
+    PACE_RAPIDO: 16,
+    // ── Cardíaco ──────────────────────────────────────────────────────────
+    FC_MED: 17, FC_MAX: 18,
+    // ── Esforço físico ────────────────────────────────────────────────────
+    ELEV: 19, CAL: 20,
+    // ── Campos manuais ────────────────────────────────────────────────────
+    RPE: 21, OBS: 22,
+    // ── Extras Strava ─────────────────────────────────────────────────────
+    SPORT_TYPE: 23, // sport_type (ex: TrailRun, VirtualRide)
+    CADENCIA: 24,   // ppm/rpm médio
+    ESFORCO_REL: 25, // suffer_score (Strava relative effort 0-100)
+    DATA_IMPORT: 26, // timestamp da importação
   },
 
-  // ── Colunas da aba MÉTRICAS (1-indexed) ──────────────────────────────────
+  // Colunas da aba PLANO SEMANAL (1-indexed)
+  PLANO: {
+    ID: 1, ATH_ID: 2, NOME: 3, SEMANA: 4, CICLO: 5,
+    MOD: 6, TITULO: 7, DIAG: 8,
+    D1_TIPO: 9, D1_PRESC: 10,
+    D2_TIPO: 11, D2_PRESC: 12,
+    D3_TIPO: 13, D3_PRESC: 14,
+    INTENCAO: 15, STATUS: 16,
+  },
+
+  // Colunas da aba TOKENS (1-indexed)
+  TOKENS: {
+    ATH_ID: 1, STRAVA_ATH_ID: 2, ACCESS: 3,
+    REFRESH: 4, EXPIRES: 5, DATA_CON: 6,
+    ULT_ATU: 7, STATUS: 8,
+  },
+
+  // Colunas da aba MÉTRICAS (1-indexed)
   MET: {
-    ATH_ID:       1,
-    NOME:         2,
-    ATUALIZADO:   3,
-    VO2:          4,
-    PACE_MED:     5,
-    PACE_RAP:     6,
-    PACE_LENTO:   7,
-    FC_MAX:       8,
-    FC_MED:       9,
-    VOL_SEM:     10,
-    Z1_LENTO:    11,
-    Z1_RAPIDO:   12,
-    Z2_LENTO:    13,
-    Z2_RAPIDO:   14,
-    Z3_LENTO:    15,
-    Z3_RAPIDO:   16,
-    Z4_LENTO:    17,
-    Z5_MIN:      18,
-    PERFIL_MAN:  19,
-    VOLUME_MAN:  20,
-    INTENS_MAN:  21,
-    ORIGEM:      22,
-    CONFIANCA:   23,
-    OBS:         24,
+    ATH_ID: 1, NOME: 2, ATUALIZADO: 3, VO2: 4,
+    PACE_MED: 5, PACE_RAP: 6, PACE_LEN: 7,
+    FC_MAX: 8, FC_MED: 9, VOL_SEM: 10,
+    CTL: 11, ATL: 12, TSB: 13, RAMP_RATE: 14, FONTE_VO2MAX: 15,
   },
 
-  // ── Colunas da aba TOKENS (1-indexed) ─────────────────────────────────────
-  TOK: {
-    EXEC_ID:  1,
-    ATH_ID:   2,
-    NOME:     3,
-    ACCESS:   4,
-    REFRESH:  5,
-    EXPIRES:  6,
-    SCOPE:    7,
-    STRAVA_ID:8,
-    ULT_ATU:  9,
-    STATUS:  10,
-  },
-
-  // ── Colunas da aba ERROS (1-indexed) ──────────────────────────────────────
-  ERR: {
-    DATA:    1,
-    ATH_ID:  2,
-    NIVEL:   3,
-    FUNCAO:  4,
-    MSG:     5,
-    STACK:   6,
+  // Colunas da aba ERROS (1-indexed)
+  ERROS: {
+    DATA: 1, NIVEL: 2, ATH_ID: 3, FUNCAO: 4,
+    MSG: 5, JSON: 6, RESOLVIDO: 7, ACAO: 8,
   },
 };
 
-// ── MENU PRINCIPAL ───────────────────────────────────────────────────────────
+// ── LER CONFIG DA PLANILHA ───────────────────────────────────────────────────
+function getCfg(chave) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const ws = ss.getSheetByName(H.SHEETS.CONFIG);
+    if (!ws) return null;
+    const dados = ws.getRange('A3:B20').getValues();
+    for (const [k, v] of dados) {
+      if (k === chave) return v ? String(v).trim() : null;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
 
-// ── MENU PRINCIPAL ───────────────────────────────────────────────────────────
+// ── MENU ─────────────────────────────────────────────────────────────────────
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  const menu = ui.createMenu('⚡ HIPERATIVO');
+  ui.createMenu('⚡ HIPERATIVO')
+    .addSubMenu(
+      ui.createMenu('🛠️ Setup')
+        .addItem('Criar / Recriar todas as abas', 'setupPlanilha')
+        .addItem('Configurar credenciais (Strava + WebApp URL)', 'setupPropriedades')
+        .addItem('Criar trigger automático (diário 06h)', 'criarTrigger')
+        .addItem('🔍 Diagnóstico rápido (credenciais + tokens)', 'diagnosticoRapido')
+        .addItem('🔧 Corrigir IDs na aba TOKENS', 'corrigirTokenIds')
+        .addItem('🧹 Desativar duplicados Trial', 'limparDuplicadosTrial')
+        .addItem('🔗 Gerar link Strava — Amanda', 'gerarLinkStravaAmanda')
+    )
+    .addSeparator()
+    .addSubMenu(
+      ui.createMenu('👤 Atletas')
+        .addItem('Gerar link Strava para atleta', 'gerarLinkStrava')
+        .addItem('🔗 Gerar links reconexão (tokens inválidos)', 'gerarLinksReconexaoTodos')
+        .addSeparator()
+        .addItem('📥 Importar Strava — mês vigente (todos)', 'importarStravaAll')
+        .addItem('📥 Importar Strava — período personalizado', 'importarStravaPeriodo')
+        .addItem('📥 Importar Strava — atleta específico', 'importarStravaUm')
+        .addSeparator()
+        .addItem('Recalcular métricas de todos', 'calcularMetricasTodos')
+        .addSeparator()
+        .addItem('🔍 Diagnóstico de conexão Strava', 'diagnosticarConexaoStrava')
+        .addItem('🧹 Limpar tokens duplicados/revogados', 'limparTokensInvalidos')
+    )
+    .addSeparator()
+    .addItem('📊 Atualizar painel agora', 'atualizarPainel')
+    .addItem('🏆 Atualizar ranking mensal', 'atualizarRanking')
+    .addItem('📋 Ver log de erros', 'abrirErros')
+    .addToUi();
 
-  // ─── ATLETAS ─────────────────────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('👤 Atletas')
-      .addItem('➕ Cadastrar novo atleta (link por email)', 'gerarLinkCadastroEmail')
-      .addItem('🔗 Gerar link de cadastro (copiar)', 'gerarLinkCadastro')
-      .addItem('📋 Ver todos os atletas', 'abrirCadastro')
-      .addSeparator()
-      .addItem('🔄 Conectar atleta ao Strava', 'gerarLinkStrava')
-      .addItem('📡 Importar perfil do atleta', 'importarPerfilAtleta')
-      .addSeparator()
-      .addItem('🗑️ Remover atleta (limpar linha)', 'removerAtleta')
-  );
-
-  // ─── ATIVIDADES ──────────────────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('🏃 Atividades')
-      .addItem('⬇️ Importar atividades agora (todos)', 'importarAtividades')
-      .addItem('⬇️ Importar atividades (atleta específico)', 'importarAtividadesAtleta')
-      .addSeparator()
-      .addItem('📊 Atualizar painel geral', 'atualizarPainel')
-      .addItem('🧹 Limpar erros de fórmula', 'limparErrosFormula')
-  );
-
-  // ─── COMUNICAÇÃO ─────────────────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('📧 Comunicação')
-      .addItem('✉️ Enviar link de cadastro (email)', 'gerarLinkCadastroEmail')
-      .addItem('📲 Gerar link WhatsApp de cadastro', 'gerarLinkCadastroWhatsapp')
-      .addItem('📋 Copiar link de cadastro', 'gerarLinkCadastro')
-      .addSeparator()
-      .addItem('📤 Enviar link Strava por email', 'enviarLinkStravaEmail')
-  );
-
-  // ─── RELATÓRIOS E EXPORTAÇÃO ─────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('📊 Relatórios')
-      .addItem('📈 Relatório geral (resumo)', 'gerarRelatorioGeral')
-      .addItem('🏅 Ranking de atletas por volume', 'gerarRankingAtletas')
-      .addItem('📧 Enviar relatório por email', 'enviarRelatorioEmail')
-      .addSeparator()
-      .addItem('📥 Exportar CADASTRO para CSV', 'exportarCadastroCSV')
-      .addItem('🔗 Sincronizar para planilha externa', 'sincronizarPlanilhaExterna')
-  );
-
-  // ─── INTEGRAÇÕES ─────────────────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('🔌 Integrações')
-      .addItem('📋 Criar formulário Google Forms', 'criarFormularioGoogleForms')
-      .addItem('🔗 Gerar WebApp de cadastro (link)', 'mostrarUrlWebApp')
-      .addSeparator()
-      .addItem('📊 Vincular planilha de destino', 'vincularPlanilhaDestino')
-      .addItem('📤 Push de dados para planilha externa', 'pushDadosPlanilhaExterna')
-  );
-
-  // ─── CONFIGURAÇÕES E SISTEMA ─────────────────────────────────────────────
-  menu.addSubMenu(
-    ui.createMenu('⚙️ Configurações')
-      .addItem('🔧 Configurar credenciais Strava', 'configurarCredenciais')
-    .addItem('⚡ Configuração Rápida / Status', 'configuracaoRapida')
-      .addItem('📧 Configurar email admin', 'configurarEmailAdmin')
-      .addSeparator()
-      .addItem('🕐 Criar trigger automático (4h)', 'criarTrigger')
-      .addItem('🗑️ Remover todos os triggers', 'removerTriggers')
-      .addSeparator()
-      .addItem('🔴 Ver log de erros', 'abrirErros')
-      .addItem('🛠️ Setup inicial da planilha', 'setupInicial')
-    .addItem('🔧 Restaurar estrutura (seguro)', 'restaurarEstrutura')
-      .addItem('♻️ Reinstalar estrutura', 'setupPlanilha')
-  );
-
-  menu.addToUi();
+  // Sincroniza status Strava ao abrir (leve — sem chamadas externas)
+  try { sincronizarStatusStrava(); } catch(e) {}
 }
 
-// ── CONFIGURAÇÕES ──────────────────────────────────────────────────────────
-
-function configurarCredenciais() {
-  const ui    = SpreadsheetApp.getUi();
-  const props = PropertiesService.getScriptProperties();
-
-  const r1 = ui.prompt('⚙️ Configurar — Passo 1/3', 'STRAVA_CLIENT_ID (apenas números):', ui.ButtonSet.OK_CANCEL);
-  if (r1.getSelectedButton() !== ui.Button.OK) return;
-  if (r1.getResponseText().trim()) props.setProperty('STRAVA_CLIENT_ID', r1.getResponseText().trim());
-
-  const r2 = ui.prompt('⚙️ Configurar — Passo 2/3', 'STRAVA_CLIENT_SECRET:', ui.ButtonSet.OK_CANCEL);
-  if (r2.getSelectedButton() !== ui.Button.OK) return;
-  if (r2.getResponseText().trim()) props.setProperty('STRAVA_CLIENT_SECRET', r2.getResponseText().trim());
-
-  const r3 = ui.prompt('⚙️ Configurar — Passo 3/3', 'WEBAPP_URL (URL /exec da implantação):', ui.ButtonSet.OK_CANCEL);
-  if (r3.getSelectedButton() !== ui.Button.OK) return;
-  if (r3.getResponseText().trim()) props.setProperty('WEBAPP_URL', r3.getResponseText().trim());
-
-  ui.alert('✅ Credenciais salvas!', 'As configurações foram armazenadas com segurança nas propriedades do projeto.', ui.ButtonSet.OK);
-}
-
-function configurarEmailAdmin() {
+// ── SETUP DE PROPRIEDADES GUIADO ─────────────────────────────────────────────
+function setupPropriedades() {
   const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
-  const atual = props.getProperty('ADMIN_EMAIL') || '';
-  const r = ui.prompt('📧 Email Admin', 
-    'Email para receber relatórios e notificações:\n(atual: ' + (atual || 'não configurado') + ')',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const email = r.getResponseText().trim();
-  if (!email || !email.includes('@')) { ui.alert('❌ Email inválido.'); return; }
-  props.setProperty('ADMIN_EMAIL', email);
-  ui.alert('✅ Email admin configurado: ' + email);
+
+  const clientId = ui.prompt(
+    '⚙️ Setup — Passo 1/3',
+    'Cole seu STRAVA_CLIENT_ID\n(encontrado em strava.com/settings/api):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (clientId.getSelectedButton() !== ui.Button.OK) return;
+
+  const clientSecret = ui.prompt(
+    '⚙️ Setup — Passo 2/3',
+    'Cole seu STRAVA_CLIENT_SECRET:',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (clientSecret.getSelectedButton() !== ui.Button.OK) return;
+
+  const webAppUrl = ui.prompt(
+    '⚙️ Setup — Passo 3/3',
+    'Cole a URL do Web App publicado\n(Implantar → Gerenciar → copiar URL /exec):',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (webAppUrl.getSelectedButton() !== ui.Button.OK) return;
+
+  props.setProperties({
+    'STRAVA_CLIENT_ID':     clientId.getResponseText().trim(),
+    'STRAVA_CLIENT_SECRET': clientSecret.getResponseText().trim(),
+    'WEBAPP_URL':           webAppUrl.getResponseText().trim(),
+  });
+
+  // Salvar também na aba CONFIG
+  const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CONFIG);
+  if (ws) {
+    const dados = ws.getRange('A3:B20').getValues();
+    dados.forEach(([k], i) => {
+      if (k === 'STRAVA_CLIENT_ID') ws.getRange(3 + i, 2).setValue(clientId.getResponseText().trim());
+      if (k === 'WEBAPP_URL')       ws.getRange(3 + i, 2).setValue(webAppUrl.getResponseText().trim());
+    });
+  }
+
+  ui.alert('✅ Credenciais salvas!',
+    'Próximo passo: Implantar → Nova implantação → Web App\n' +
+    'Executar como: Você | Acesso: Qualquer pessoa\n\n' +
+    'Depois use: Menu → Criar trigger de importação (2h)',
+    ui.ButtonSet.OK);
 }
 
+// ── TRIGGER AUTOMÁTICO ───────────────────────────────────────────────────────
 function criarTrigger() {
-  // Remover triggers duplicados da mesma função
+  // Remove triggers antigos do mesmo tipo para não duplicar
   ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'triggerImportacaoAutomatica') {
+    const fn = t.getHandlerFunction();
+    if (fn === 'importarStravaAll' || fn === 'triggerImportacaoAutomatica') {
       ScriptApp.deleteTrigger(t);
     }
   });
+
+  // Trigger diário às 06h — importa só o mês corrente (evita timeout)
   ScriptApp.newTrigger('triggerImportacaoAutomatica')
     .timeBased()
-    .everyHours(6)
+    .everyDays(1)
+    .atHour(6)
     .create();
-  try {
-    SpreadsheetApp.getUi().alert('✅ Trigger criado!', 'Importação automática configurada a cada 6 horas.', SpreadsheetApp.getUi().ButtonSet.OK);
-  } catch(_) {}
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Trigger diário criado',
+    'O sistema vai importar atividades do Strava todos os dias às 06h.\n\n' +
+    '📅 Importa apenas o MÊS CORRENTE (evita timeout de 6 min).\n\n' +
+    'Para importar período específico use:\nMenu → Atletas → Importar Strava — período personalizado',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+
+  _log('SYSTEM', 'INFO', 'Trigger', 'Trigger diário 06h criado (mês corrente)', '');
 }
 
-function removerTriggers() {
-  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
-  try {
-    SpreadsheetApp.getUi().alert('🗑️ Triggers removidos', 'Todos os triggers foram excluídos.', SpreadsheetApp.getUi().ButtonSet.OK);
-  } catch(_) {}
-}
+// ── ATUALIZAR WEBAPP_URL APÓS NOVO DEPLOYMENT ────────────────────────────────
+function atualizarWebAppUrl() {
+  const ui = SpreadsheetApp.getUi();
+  const resp = ui.prompt(
+    '🔗 Novo Deployment — Atualizar URL',
+    'Cole a nova URL do Web App (/exec):\n\n' +
+    '(Implantar → Gerenciar implantações → copiar URL da versão ativa)',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
 
-// ── NAVEGAÇÃO ────────────────────────────────────────────────────────────────
-
-function abrirCadastro() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(H.SHEETS.CADASTRO);
-  if (sh) ss.setActiveSheet(sh);
-}
-
-function mostrarUrlWebApp() {
-  const url = PropertiesService.getScriptProperties().getProperty('WEBAPP_URL');
-  if (!url) {
-    SpreadsheetApp.getUi().alert('❌ URL do WebApp não configurada.\nVá em ⚙️ Configurações → Configurar credenciais.');
+  const novaUrl = resp.getResponseText().trim();
+  if (!novaUrl || !novaUrl.startsWith('https://script.google.com/macros/s/')) {
+    ui.alert('❌ URL inválida', 'A URL deve começar com:\nhttps://script.google.com/macros/s/', ui.ButtonSet.OK);
     return;
   }
-  SpreadsheetApp.getUi().alert('🔗 URL do WebApp de Cadastro:\n\n' + url + '\n\nCopie esta URL para compartilhar o formulário de cadastro.');
-}
 
-// ── ATLETAS HELPERS ───────────────────────────────────────────────────────────
+  // Salvar no PropertiesService
+  PropertiesService.getScriptProperties().setProperty('WEBAPP_URL', novaUrl);
 
-function removerAtleta() {
-  const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('🗑️ Remover Atleta', 
-    'Digite o ATH_ID do atleta a remover (ex: ATH001):',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const athId = r.getResponseText().trim().toUpperCase();
-  if (!athId) return;
-  
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(H.SHEETS.CADASTRO);
-  const dados = sh.getDataRange().getValues();
-  
-  for (let i = 1; i < dados.length; i++) {
-    if (String(dados[i][H.CAD.ID - 1]).toUpperCase() === athId) {
-      const conf = ui.alert('⚠️ Confirmar remoção?', 
-        'Atleta: ' + dados[i][H.CAD.NOME - 1] + '\nID: ' + athId + '\n\nIsso apagará todos os dados desta linha.',
-        ui.ButtonSet.YES_NO);
-      if (conf === ui.Button.YES) {
-        sh.deleteRow(i + 1);
-        ui.alert('✅ Atleta ' + athId + ' removido com sucesso.');
+  // Atualizar aba CONFIG
+  const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CONFIG);
+  if (ws) {
+    const dados = ws.getRange('A3:B25').getValues();
+    let webAppRow = -1;
+    let linkRow   = -1;
+    dados.forEach(([k], i) => {
+      if (k === 'WEBAPP_URL')    webAppRow = 3 + i;
+      if (k === 'LINK_CADASTRO') linkRow   = 3 + i;
+    });
+    if (webAppRow > 0) {
+      ws.getRange(webAppRow, 2).setValue(novaUrl);
+      // Garantir que LINK_CADASTRO exista logo abaixo com fórmula
+      if (linkRow < 0) {
+        ws.insertRowAfter(webAppRow);
+        linkRow = webAppRow + 1;
+        ws.getRange(linkRow, 1).setValue('LINK_CADASTRO')
+          .setFontFamily('Courier New').setFontSize(10).setFontWeight('bold')
+          .setFontColor(COR.verde).setBackground(COR.cinza_claro)
+          .setHorizontalAlignment('left').setVerticalAlignment('middle');
+        ws.getRange(linkRow, 3).setValue('Link a compartilhar com novos alunos — copie desta célula')
+          .setFontFamily('Arial').setFontSize(10).setFontStyle('italic')
+          .setFontColor('#388E3C').setBackground('#F1F8E9')
+          .setHorizontalAlignment('left').setVerticalAlignment('middle');
+        ws.setRowHeight(linkRow, 26);
       }
-      return;
+      ws.getRange(linkRow, 2).setFormula(`=B${webAppRow}&"?cadastro=true"`)
+        .setFontFamily('Courier New').setFontSize(10)
+        .setBackground('#F1F8E9').setFontColor('#2E7D32')
+        .setHorizontalAlignment('left').setVerticalAlignment('middle');
     }
   }
-  ui.alert('❌ Atleta ' + athId + ' não encontrado.');
+
+  _log('SYSTEM', 'INFO', 'atualizarWebAppUrl', 'WEBAPP_URL atualizada para: ' + novaUrl, '');
+  ui.alert('✅ URL atualizada', 'Nova URL salva com sucesso.\n\nCopie o LINK_CADASTRO da aba CONFIG e envie aos alunos.', ui.ButtonSet.OK);
 }
 
-function importarAtividadesAtleta() {
-  const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('⬇️ Importar Atividades',
-    'Digite o ATH_ID do atleta (ex: ATH001):',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const athId = r.getResponseText().trim().toUpperCase();
-  if (!athId) return;
-  try {
-    importarPerfilAtleta(athId);
-    ui.alert('✅ Atividades de ' + athId + ' importadas com sucesso!');
-  } catch(e) {
-    ui.alert('❌ Erro: ' + e.message);
-  }
-}
+// ── PATCH: ADICIONAR LINK_CADASTRO NO CONFIG EXISTENTE (executar uma vez) ────
+function adicionarLinkCadastroPatch() {
+  const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CONFIG);
+  if (!ws) { Logger.log('CONFIG não encontrado'); return; }
 
-// ── RELATÓRIOS ────────────────────────────────────────────────────────────────
-
-function gerarRelatorioGeral() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
-  const shAtv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
-  
-  const cadDados = shCad ? shCad.getDataRange().getValues() : [];
-  const atvDados = shAtv ? shAtv.getDataRange().getValues() : [];
-  
-  const totalAtletas = cadDados.length > 1 ? cadDados.length - 1 : 0;
-  const atletasStrava = cadDados.slice(1).filter(r => r[H.CAD.STRAVA_OK - 1] === true || r[H.CAD.STRAVA_OK - 1] === 'TRUE').length;
-  const totalAtividades = atvDados.length > 1 ? atvDados.length - 1 : 0;
-  
-  const msg = [
-    '📊 RELATÓRIO GERAL — HIPERATIVO V3',
-    '════════════════════════════════════',
-    '👥 Total de atletas: ' + totalAtletas,
-    '🔗 Conectados ao Strava: ' + atletasStrava,
-    '🏃 Total de atividades: ' + totalAtividades,
-    '',
-    'Data: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
-  ].join('\n');
-  
-  SpreadsheetApp.getUi().alert('📊 Relatório Geral', msg, SpreadsheetApp.getUi().ButtonSet.OK);
-}
-
-function gerarRankingAtletas() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const shAtv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
-  if (!shAtv) { SpreadsheetApp.getUi().alert('❌ Aba ATIVIDADES não encontrada.'); return; }
-  
-  const dados = shAtv.getDataRange().getValues();
-  if (dados.length < 2) { SpreadsheetApp.getUi().alert('Sem atividades registradas.'); return; }
-  
-  // Count activities per athlete (assuming col 1 = ATH_ID, col 5 = distance or similar)
-  const ranking = {};
-  dados.slice(1).forEach(row => {
-    const id = String(row[0]);
-    if (!ranking[id]) ranking[id] = {count: 0, nome: String(row[1] || id)};
-    ranking[id].count++;
+  const dados = ws.getRange('A3:B25').getValues();
+  let webAppRow = -1;
+  let linkRow   = -1;
+  dados.forEach(([k], i) => {
+    if (k === 'WEBAPP_URL')    webAppRow = 3 + i;
+    if (k === 'LINK_CADASTRO') linkRow   = 3 + i;
   });
-  
-  const sorted = Object.entries(ranking).sort((a,b) => b[1].count - a[1].count).slice(0,10);
-  const lines = ['🏅 RANKING — TOP 10 ATLETAS (por nº de atividades)', '════════════════════════════════════════════════'];
-  sorted.forEach(([id, data], idx) => {
-    lines.push((idx+1) + 'º ' + data.nome + ' (' + id + '): ' + data.count + ' atividades');
-  });
-  
-  SpreadsheetApp.getUi().alert('🏅 Ranking', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
+
+  if (webAppRow < 0) { Logger.log('WEBAPP_URL não encontrada'); return; }
+  if (linkRow > 0)   { Logger.log('LINK_CADASTRO já existe na linha ' + linkRow); return; }
+
+  ws.insertRowAfter(webAppRow);
+  linkRow = webAppRow + 1;
+  ws.getRange(linkRow, 1).setValue('LINK_CADASTRO')
+    .setFontFamily('Courier New').setFontSize(10).setFontWeight('bold')
+    .setFontColor(COR.verde).setBackground(COR.cinza_claro)
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  ws.getRange(linkRow, 2).setFormula(`=B${webAppRow}&"?cadastro=true"`)
+    .setFontFamily('Courier New').setFontSize(10)
+    .setBackground('#F1F8E9').setFontColor('#2E7D32')
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  ws.getRange(linkRow, 3).setValue('Link para novos alunos — copie e compartilhe')
+    .setFontFamily('Arial').setFontSize(10).setFontStyle('italic')
+    .setFontColor('#388E3C').setBackground('#F1F8E9')
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  ws.setRowHeight(linkRow, 26);
+  Logger.log('✅ LINK_CADASTRO adicionado na linha ' + linkRow + ' — fórmula: =B' + webAppRow + '&"?cadastro=true"');
 }
 
-function enviarRelatorioEmail() {
-  const props = PropertiesService.getScriptProperties();
-  const email = props.getProperty('ADMIN_EMAIL') || 'contato@ghiperativo.com.br';
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
-  const shAtv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
-  
-  const totalAtletas = shCad ? Math.max(0, shCad.getLastRow() - 1) : 0;
-  const totalAtividades = shAtv ? Math.max(0, shAtv.getLastRow() - 1) : 0;
-  const data = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
-  
-  const corpo = '<h2>📊 Relatório HIPERATIVO V3 — ' + data + '</h2>' +
-    '<table border="1" cellpadding="8" style="border-collapse:collapse">' +
-    '<tr><td><b>Total de atletas</b></td><td>' + totalAtletas + '</td></tr>' +
-    '<tr><td><b>Total de atividades</b></td><td>' + totalAtividades + '</td></tr>' +
-    '</table>' +
-    '<p>Acesse a planilha: <a href="' + ss.getUrl() + '">' + ss.getName() + '</a></p>';
-  
-  MailApp.sendEmail({to: email, subject: '📊 Relatório HIPERATIVO V3 — ' + data, htmlBody: corpo});
-  SpreadsheetApp.getUi().alert('✅ Relatório enviado para: ' + email);
+// ── DEFINIR TOKENS AUXILIARES (sem UI, roda no editor) ──────────────────────
+function setTokensAuxiliares() {
+  PropertiesService.getScriptProperties().setProperty('STRAVA_VERIFY_TOKEN', 'HIPERATIVO_STRAVA_2024');
+  Logger.log('✅ STRAVA_VERIFY_TOKEN definido');
 }
 
-// ── EXPORTAÇÃO E INTEGRAÇÃO ───────────────────────────────────────────────────
-
-function exportarCadastroCSV() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(H.SHEETS.CADASTRO);
-  if (!sh) { SpreadsheetApp.getUi().alert('❌ Aba CADASTRO não encontrada.'); return; }
-  
-  const dados = sh.getDataRange().getValues();
-  const csv = dados.map(row => row.map(cell => {
-    const s = String(cell).replace(/"/g, '""');
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s + '"' : s;
-  }).join(',')).join('\n');
-  
-  const blob = Utilities.newBlob(csv, 'text/csv', 'CADASTRO_HIPERATIVO_' + 
-    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd') + '.csv');
-  const file = DriveApp.createFile(blob);
-  
-  SpreadsheetApp.getUi().alert('✅ CSV exportado para o Drive:\n' + file.getName() + '\n\nURL: ' + file.getUrl());
+// ── INIT CONFIG SHEET ONLY (seguro: não apaga outras abas) ──────────────────
+function initConfigOnly() {
+  const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CONFIG);
+  if (!ws) { Logger.log('CONFIG não encontrado'); return; }
+  _criarConfig(ws);
+  Logger.log('✅ CONFIG inicializado com sucesso');
 }
 
-function vincularPlanilhaDestino() {
-  const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('🔗 Vincular Planilha',
-    'Cole o ID da planilha de destino (ex: 1aBcD...xyz):\n(É o código da URL entre /d/ e /edit)',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const id = r.getResponseText().trim();
-  if (!id) return;
-  
+// ── LOG INTERNO ──────────────────────────────────────────────────────────────
+function _log(athId, nivel, funcao, msg, jsonStr) {
   try {
-    const dest = SpreadsheetApp.openById(id);
-    PropertiesService.getScriptProperties().setProperty('PLANILHA_DESTINO_ID', id);
-    ui.alert('✅ Planilha vinculada: ' + dest.getName() + '\nUse "Push de dados" para sincronizar.');
-  } catch(e) {
-    ui.alert('❌ Erro ao acessar planilha: ' + e.message + '\nVerifique se você tem acesso a ela.');
-  }
+    const ws = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.ERROS);
+    if (!ws) return;
+    ws.appendRow([
+      new Date(), nivel, athId || 'SYSTEM', funcao,
+      msg, jsonStr || '', 'Não', '',
+    ]);
+  } catch (e) { /* silencioso */ }
 }
 
-function sincronizarPlanilhaExterna() {
-  pushDadosPlanilhaExterna();
-}
-
-function pushDadosPlanilhaExterna() {
-  const props = PropertiesService.getScriptProperties();
-  const destId = props.getProperty('PLANILHA_DESTINO_ID');
-  if (!destId) {
-    SpreadsheetApp.getUi().alert('❌ Nenhuma planilha vinculada.\nVá em 🔌 Integrações → Vincular planilha de destino.');
+// ── CONFIGURAR CABEÇALHOS DA ABA ATIVIDADES ──────────────────────────────────
+function configurarCabecalhosAtividades() {
+  const ss = SpreadsheetApp.getActive();
+  const ws = ss.getSheetByName(H.SHEETS.ATIVIDADES);
+  if (!ws) {
+    SpreadsheetApp.getUi().alert('❌ Aba "' + H.SHEETS.ATIVIDADES + '" não encontrada.');
     return;
   }
-  
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const dest = SpreadsheetApp.openById(destId);
-    
-    // Copy CADASTRO sheet
-    const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
-    if (shCad) {
-      let destCad = dest.getSheetByName('CADASTRO_HIPERATIVO');
-      if (!destCad) destCad = dest.insertSheet('CADASTRO_HIPERATIVO');
-      else destCad.clearContents();
-      
-      const dados = shCad.getDataRange().getValues();
-      if (dados.length > 0) {
-        destCad.getRange(1, 1, dados.length, dados[0].length).setValues(dados);
-      }
-    }
-    
-    SpreadsheetApp.getUi().alert('✅ Dados sincronizados para: ' + dest.getName() + '\nAba criada: CADASTRO_HIPERATIVO');
-  } catch(e) {
-    SpreadsheetApp.getUi().alert('❌ Erro na sincronização: ' + e.message);
-  }
+
+  const cabecalhos = [
+    // Cols 1-8: Identificação
+    'ID Execução', 'ID Atleta', 'Nome Atleta', 'Data', 'Tipo de Atividade',
+    'Fonte', 'ID Strava', 'Nome da Atividade',
+    // Cols 9-10: Tempo
+    'Tempo Mov. (hh:mm:ss)', 'Tempo Total (hh:mm:ss)',
+    // Cols 11-12: Distância
+    'Distância (m)', 'Distância (km)',
+    // Cols 13-16: Velocidade e Pace
+    'Vel. Média (km/h)', 'Pace Médio (s/km)', 'Pace Médio (min:ss)', 'Pace Mais Rápido',
+    // Cols 17-18: Cardíaco
+    'FC Média', 'FC Máxima',
+    // Cols 19-20: Esforço
+    'Elevação (m)', 'Calorias',
+    // Cols 21-22: Manuais
+    'RPE (1-10)', 'Observações',
+    // Cols 23-26: Extras Strava
+    'Tipo Esporte', 'Cadência (ppm)', 'Esforço Relativo', 'Data Importação',
+  ];
+
+  ws.getRange(2, 1, 1, cabecalhos.length).setValues([cabecalhos]);
+
+  // Formatar cabeçalho (negrito + fundo cinza)
+  const rng = ws.getRange(2, 1, 1, cabecalhos.length);
+  rng.setFontWeight('bold');
+  rng.setBackground('#EFEFEF');
+
+  // Larguras sugeridas
+  const larguras = [120, 90, 130, 130, 120, 60, 110, 180,
+                    110, 110, 90, 90, 100, 100, 110, 100,
+                    70, 70, 85, 80, 70, 130, 110, 90, 110, 120];
+  larguras.forEach((w, i) => ws.setColumnWidth(i + 1, w));
+
+  _log('SYSTEM', 'INFO', 'configurarCabecalhosAtividades', 'Cabeçalhos atualizados: 26 colunas', '');
+  SpreadsheetApp.getUi().alert('✅ Cabeçalhos atualizados!',
+    '26 colunas configuradas na aba ATIVIDADES.\n\n' +
+    'Novos campos adicionados:\n' +
+    '• Tipo Esporte (col W)\n• Cadência ppm (col X)\n' +
+    '• Esforço Relativo (col Y)\n• Data Importação (col Z)',
+    SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
-function criarFormularioGoogleForms() {
-  const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('📋 Criar Formulário',
-    'Nome do formulário (ex: Cadastro HIPERATIVO - Turma Janeiro):',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const titulo = r.getResponseText().trim() || 'Cadastro HIPERATIVO';
-  
-  try {
-    const form = FormApp.create(titulo);
-    form.setTitle(titulo);
-    form.setDescription('Formulário de cadastro HIPERATIVO. Preencha todos os campos.');
-    
-    // Add questions
-    form.addTextItem().setTitle('Nome completo').setRequired(true);
-    form.addTextItem().setTitle('E-mail').setRequired(true);
-    form.addTextItem().setTitle('WhatsApp (com DDD)').setRequired(true);
-    form.addDateItem().setTitle('Data de nascimento').setRequired(true);
-    form.addMultipleChoiceItem().setTitle('Sexo').setRequired(true)
-      .setChoiceValues(['Masculino', 'Feminino', 'Prefiro não informar']);
-    form.addMultipleChoiceItem().setTitle('Programa de interesse').setRequired(true)
-      .setChoiceValues([
-        'Alta Voltagem ⚡',
-        'Corrida CCC 🏅',
-        'Iniciante em Movimento 🌱',
-        '5k/10k em 6 Semanas 🎯',
-        'Hiperativo Running Club 🏃',
-        'Vida Ativa Melhor Idade 🌟'
-      ]);
-    form.addTextItem().setTitle('Objetivo principal').setRequired(false);
-    form.addParagraphTextItem().setTitle('Observações / condições de saúde').setRequired(false);
-    
-    const url = form.getPublishedUrl();
-    const editUrl = form.getEditUrl();
-    
-    PropertiesService.getScriptProperties().setProperty('GOOGLE_FORMS_URL', url);
-    
-    ui.alert('✅ Formulário criado com sucesso!\n\n📋 Link para preencher:\n' + url + 
-      '\n\n✏️ Link de edição:\n' + editUrl + '\n\nO link foi salvo nas configurações.');
-  } catch(e) {
-    ui.alert('❌ Erro ao criar formulário: ' + e.message);
-  }
-}
-
-// ── LOG E ERROS ───────────────────────────────────────────────────────────────
-
-function _log(athId, nivel, funcao, msg, stack) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sh = ss.getSheetByName(H.SHEETS.ERROS);
-    if (!sh) return;
-    const ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
-    sh.appendRow([ts, athId || '', nivel || 'INFO', funcao || '', msg || '', stack || '']);
-  } catch(e) { Logger.log('_log error: ' + e.message); }
-}
-
+// ── ABRIR ERROS ──────────────────────────────────────────────────────────────
 function abrirErros() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(H.SHEETS.ERROS);
-  if (sh) ss.setActiveSheet(sh);
+  const ss = SpreadsheetApp.getActive();
+  ss.setActiveSheet(ss.getSheetByName(H.SHEETS.ERROS));
 }
 
-function atualizarPainel() {
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(
-    SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.PAINEL));
-  SpreadsheetApp.flush();
-}
+// ── CORRIGIR LINHAS DESLOCADAS ────────────────────────────────────────────────
+// As atividades e métricas foram gravadas abaixo das linhas de fórmula (503+/203+)
+// por causa do appendRow. Esta função move tudo para as linhas corretas (3+).
+function corrigirLinhasDeslocadas() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActive();
+  let msg  = '';
 
-function getCfg() {
-  const props = PropertiesService.getScriptProperties();
-  return {
-    clientId: props.getProperty('STRAVA_CLIENT_ID') ? '✅ OK' : '❌ Ausente',
-    secret:   props.getProperty('STRAVA_CLIENT_SECRET') ? '✅ OK' : '❌ Ausente',
-    webApp:   props.getProperty('WEBAPP_URL') ? '✅ OK' : '❌ Ausente',
-  };
-}
-
-/**
- * Configuração Rápida — configura CLIENT_ID, verifica status e guia o usuário.
- * Acessível via menu ⚡ HIPERATIVO > Configurações > Configuração Rápida
- */
-function configuracaoRapida() {
-  const ui   = SpreadsheetApp.getUi();
-  const props = PropertiesService.getScriptProperties();
-
-  // 1. Configura CLIENT_ID automaticamente (valor fixo do app Strava)
-  props.setProperty('STRAVA_CLIENT_ID', '153043');
-
-  // 2. Verifica o que está faltando
-  const secret  = props.getProperty('STRAVA_CLIENT_SECRET') || '';
-  const webApp  = props.getProperty('WEBAPP_URL') || '';
-  const clientId = props.getProperty('STRAVA_CLIENT_ID') || '153043';
-
-  let status = '✅ CONFIGURADO:\n';
-  status += '  • CLIENT_ID: ' + clientId + '\n\n';
-
-  let pendente = '⚠️ PENDENTE (ação manual necessária):\n';
-  let acoes = '';
-
-  if (!secret) {
-    pendente += '  • CLIENT_SECRET: não configurado\n';
-    acoes += '1. Acesse: https://www.strava.com/settings/api\n';
-    acoes += '   Copie o "Client Secret" do seu app\n\n';
-  } else {
-    status += '  • CLIENT_SECRET: configurado ✓\n';
+  // ── ATIVIDADES: mover de linhas 503+ para linhas 3+ ──
+  const wsAtiv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
+  if (wsAtiv) {
+    const lastAtiv = wsAtiv.getLastRow();
+    if (lastAtiv >= 503) {
+      const total  = lastAtiv - 502;
+      const dados  = wsAtiv.getRange(503, 1, total, 22).getValues()
+        .filter(r => r[H.ATIV.EXEC_ID - 1]);
+      if (dados.length > 0) {
+        wsAtiv.getRange(3, 1, dados.length, 22).setValues(dados);
+        wsAtiv.getRange(503, 1, total, 22).clearContent();
+        msg += '✅ ATIVIDADES: ' + dados.length + ' linhas movidas para linha 3+\n';
+      }
+    } else {
+      msg += 'ℹ️ ATIVIDADES: sem dados deslocados\n';
+    }
   }
 
-  if (!webApp) {
-    pendente += '  • WEBAPP_URL: não configurado\n';
-    acoes += '2. Implante o WebApp:\n';
-    acoes += '   a) Extensões > Apps Script\n';
-    acoes += '   b) Clique "Implantar" > "Nova implantação"\n';
-    acoes += '   c) Tipo: "Aplicativo da Web"\n';
-    acoes += '   d) Executar como: "EU (sua conta)"\n';
-    acoes += '   e) Quem tem acesso: "Qualquer pessoa"\n';
-    acoes += '   f) Copie a URL /exec gerada\n\n';
-  } else {
-    status += '  • WEBAPP_URL: ' + webApp.substring(0, 50) + '...\n';
+  // ── MÉTRICAS: mover de linhas 203+ para linhas 3+ ──
+  const wsMet = ss.getSheetByName(H.SHEETS.METRICAS);
+  if (wsMet) {
+    const lastMet = wsMet.getLastRow();
+    if (lastMet >= 203) {
+      const total = lastMet - 202;
+      const dados = wsMet.getRange(203, 1, total, 10).getValues()
+        .filter(r => r[H.MET.ATH_ID - 1]);
+      if (dados.length > 0) {
+        wsMet.getRange(3, 1, dados.length, 10).setValues(dados);
+        wsMet.getRange(203, 1, total, 10).clearContent();
+        msg += '✅ MÉTRICAS: ' + dados.length + ' linhas movidas para linha 3+\n';
+      }
+    } else {
+      msg += 'ℹ️ MÉTRICAS: sem dados deslocados\n';
+    }
   }
 
-  if (!secret || !webApp) {
-    acoes += '3. Execute: HIPERATIVO > Configurações > Configurar credenciais Strava\n';
-    acoes += '   e cole o CLIENT_SECRET e a URL do WebApp quando solicitado.\n';
+  if (!msg) msg = 'Nenhuma correção necessária.';
+  _log('SYSTEM', 'INFO', 'corrigirLinhasDeslocadas', msg.replace(/\n/g, ' | '), '');
+  ui.alert('🔧 Correção concluída', msg, ui.ButtonSet.OK);
+}
 
-    const msg = status + '\n' + pendente + '\n\n📋 PRÓXIMAS AÇÕES:\n' + acoes;
-    ui.alert('⚡ Configuração Rápida', msg, ui.ButtonSet.OK);
-  } else {
-    // Tudo configurado! Gerar link de teste
-    const linkTeste = webApp + '?cadastro=true';
-    ui.alert(
-      '✅ Sistema configurado!',
-      'Tudo está configurado.\n\n' + status + '\n' +
-      '🔗 Link de cadastro (genérico):\n' + linkTeste + '\n\n' +
-      'Use o menu "🔗 Gerar link de cadastro" para gerar links por atleta.',
-      ui.ButtonSet.OK
-    );
+// ── CORRIGIR FÓRMULAS pt-BR ───────────────────────────────────────────────────
+// O setup gerou fórmulas com vírgula (sintaxe US). A localidade pt-BR exige
+// ponto-e-vírgula como separador. Esta função reescreve todas as fórmulas
+// do PAINEL, GRÁFICOS e zonas de MÉTRICAS com o separador correto.
+function corrigirFormulas() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActive();
+
+  // ── PAINEL ─────────────────────────────────────────────────────────────────
+  const wsP = ss.getSheetByName(H.SHEETS.PAINEL);
+  if (wsP) {
+    // KPI linha 6 — corrige fórmulas e o bug do Total (COUNTA - COUNTBLANK = negativo)
+    const kpiCols = [1, 3, 5, 7, 9, 11];
+    const kpiFmls = [
+      "=COUNTA('👤 CADASTRO'!A3:A500)",
+      "=COUNTIF('👤 CADASTRO'!T3:T500;\"Ativo\")",
+      "=COUNTIF('👤 CADASTRO'!R3:R500;\"Sim\")",
+      "=COUNTIFS('🏃 ATIVIDADES'!D3:D500;\">=\"&TODAY()-7)",
+      "=IFERROR(TEXT(INT(AVERAGEIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!N3:N500)/60);\"0\")&\":\"&TEXT(MOD(ROUND(AVERAGEIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!N3:N500);0);60);\"00\");\"--\")",
+      "=IFERROR(ROUND(SUMIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!L3:L500)/MAX(1;COUNTIF('👤 CADASTRO'!T3:T500;\"Ativo\"));1);\"--\")",
+    ];
+    kpiCols.forEach((col, i) => wsP.getRange(6, col).setFormula(kpiFmls[i]));
+
+    // Últimas atividades (linhas 11-20, colunas 1-6) e alertas (colunas 8-11)
+    const fmlsAtiv = [], fmlsAlert = [];
+    for (let r = 11; r <= 20; r++) {
+      const idx = r - 10;
+      fmlsAtiv.push([
+        `=IFERROR(TEXT(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});"DD/MM/AAAA");"--")`,
+        `=IFERROR(INDEX('🏃 ATIVIDADES'!C$3:C$500;MATCH(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});'🏃 ATIVIDADES'!D$3:D$500;0));"--")`,
+        `=IFERROR(INDEX('🏃 ATIVIDADES'!E$3:E$500;MATCH(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});'🏃 ATIVIDADES'!D$3:D$500;0));"--")`,
+        `=IFERROR(ROUND(INDEX('🏃 ATIVIDADES'!L$3:L$500;MATCH(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});'🏃 ATIVIDADES'!D$3:D$500;0));2);"--")`,
+        `=IFERROR(INDEX('🏃 ATIVIDADES'!O$3:O$500;MATCH(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});'🏃 ATIVIDADES'!D$3:D$500;0));"--")`,
+        `=IFERROR(ROUND(INDEX('🏃 ATIVIDADES'!Q$3:Q$500;MATCH(LARGE('🏃 ATIVIDADES'!D$3:D$500;${idx});'🏃 ATIVIDADES'!D$3:D$500;0));0);"--")`,
+      ]);
+      fmlsAlert.push([
+        `=IFERROR(INDEX('👤 CADASTRO'!B$3:B$500;${idx});"--")`,
+        `=IFERROR(TEXT(MAXIFS('🏃 ATIVIDADES'!D$3:D$500;'🏃 ATIVIDADES'!C$3:C$500;H${r});"DD/MM/AA");"Nunca")`,
+        `=IFERROR(TODAY()-MAXIFS('🏃 ATIVIDADES'!D$3:D$500;'🏃 ATIVIDADES'!C$3:C$500;H${r});"--")`,
+        `=IFERROR(IF(J${r}>14;"⚠️ Verificar";"✅ OK");"--")`,
+      ]);
+    }
+    wsP.getRange(11, 1, 10, 6).setFormulas(fmlsAtiv);
+    wsP.getRange(11, 8, 10, 4).setFormulas(fmlsAlert);
   }
 
-  _log('SYSTEM', 'INFO', 'configuracaoRapida', 'Status verificado. Secret:' + (secret ? 'OK' : 'falta') + ' WebApp:' + (webApp ? 'OK' : 'falta'), '');
-}
+  // ── GRÁFICOS ───────────────────────────────────────────────────────────────
+  const wsG = ss.getSheetByName(H.SHEETS.GRAFICOS);
+  if (wsG) {
+    const gFmls = [
+      ["=SUMPRODUCT((MONTH('🏃 ATIVIDADES'!D3:D500)=MONTH(TODAY()))*(YEAR('🏃 ATIVIDADES'!D3:D500)=YEAR(TODAY()))*('🏃 ATIVIDADES'!E3:E500=\"Corrida\")*('🏃 ATIVIDADES'!L3:L500))"],
+      ["=COUNTIFS('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!D3:D500;\">=\"&DATE(YEAR(TODAY());MONTH(TODAY());1))"],
+      ["=IFERROR(TEXT(INT(AVERAGEIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!N3:N500)/60);\"0\")&\":\"&TEXT(MOD(ROUND(AVERAGEIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!N3:N500);0);60);\"00\");\"--\")"],
+      ["=IFERROR(ROUND(AVERAGEIF('🏃 ATIVIDADES'!E3:E500;\"Corrida\";'🏃 ATIVIDADES'!Q3:Q500);0);\"--\")"],
+      ["=IFERROR(ROUND(AVERAGE('📈 MÉTRICAS'!D3:D202);1);\"--\")"],
+      ["=COUNTIF('📊 PAINEL'!K11:K20;\"⚠️ Verificar\")"],
+    ];
+    wsG.getRange(4, 2, 6, 1).setFormulas(gFmls);
+  }
 
+  // ── MÉTRICAS: zonas Z1–Z5 (cols 11–18) em batch ───────────────────────────
+  const wsMet = ss.getSheetByName(H.SHEETS.METRICAS);
+  if (wsMet) {
+    const fim = Math.min(wsMet.getLastRow(), 202);
+    if (fim >= 3) {
+      const zoneFmls = [];
+      for (let r = 3; r <= fim; r++) {
+        zoneFmls.push([
+          `=IFERROR(TEXT(INT(E${r}*1.20/60);"0")&":"&TEXT(MOD(ROUND(E${r}*1.20;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*1.08/60);"0")&":"&TEXT(MOD(ROUND(E${r}*1.08;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*1.04/60);"0")&":"&TEXT(MOD(ROUND(E${r}*1.04;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*0.96/60);"0")&":"&TEXT(MOD(ROUND(E${r}*0.96;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*0.94/60);"0")&":"&TEXT(MOD(ROUND(E${r}*0.94;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*0.87/60);"0")&":"&TEXT(MOD(ROUND(E${r}*0.87;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(E${r}*0.84/60);"0")&":"&TEXT(MOD(ROUND(E${r}*0.84;0);60);"00");"")`,
+          `=IFERROR(TEXT(INT(F${r}/60);"0")&":"&TEXT(MOD(F${r};60);"00");"")`,
+        ]);
+      }
+      wsMet.getRange(3, 11, fim - 2, 8).setFormulas(zoneFmls);
+    }
+  }
 
-function setCredenciaisStrava() {
-  var props = PropertiesService.getScriptProperties();
-  props.setProperty('STRAVA_CLIENT_ID',     '153043');
-  props.setProperty('STRAVA_CLIENT_SECRET', 'cdd187f3cdd47676220fdba5d9994c1cc838c7bc');
-  Logger.log('Credenciais Strava configuradas com sucesso.');
-  Logger.log('CLIENT_ID: ' + props.getProperty('STRAVA_CLIENT_ID'));
-  Logger.log('SECRET: SET (' + props.getProperty('STRAVA_CLIENT_SECRET').length + ' chars)');
-}
-
-
-function diagnosticoRapido() {
-  var props = PropertiesService.getScriptProperties();
-  var clientId = props.getProperty('STRAVA_CLIENT_ID') || 'NAO CONFIGURADO';
-  var secret = props.getProperty('STRAVA_CLIENT_SECRET') ? 'CONFIGURADO (' + props.getProperty('STRAVA_CLIENT_SECRET').length + ' chars)' : 'NAO CONFIGURADO';
-  var webApp = props.getProperty('WEBAPP_URL') || 'NAO CONFIGURADO';
-  Logger.log('CLIENT_ID: ' + clientId);
-  Logger.log('CLIENT_SECRET: ' + secret);
-  Logger.log('WEBAPP_URL: ' + webApp);
+  _log('SYSTEM', 'INFO', 'corrigirFormulas', 'Separador pt-BR (;) aplicado: PAINEL, GRÁFICOS, MÉTRICAS', '');
+  ui.alert('✅ Fórmulas corrigidas!',
+    'PAINEL, GRÁFICOS e zonas de MÉTRICAS atualizados.\n\n' +
+    'Próximos passos:\n' +
+    '1. Menu → Setup → 🔧 Corrigir linhas deslocadas\n' +
+    '2. Menu → 📊 Atualizar painel agora',
+    ui.ButtonSet.OK);
 }

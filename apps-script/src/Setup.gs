@@ -122,10 +122,18 @@ function setupPlanilha() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
+  // Verificar tokens existentes ANTES de qualquer operação
+  const wsTokAtual = ss.getSheetByName(H.SHEETS.TOKENS);
+  const nTokens    = wsTokAtual ? Math.max(0, wsTokAtual.getLastRow() - 1) : 0;
+  const avisoToken = nTokens > 0
+    ? '🔐 ' + nTokens + ' token(s) OAuth do Strava serão PRESERVADOS.\n'
+    : '';
+
   const resp = ui.alert(
     '⚡ HIPERATIVO V3 — Setup da Planilha',
     'Isso vai criar/recriar todas as abas com layout completo.\n' +
-    'Abas existentes com os mesmos nomes serão substituídas.\n\nContinuar?',
+    'Abas existentes serão substituídas (exceto TOKENS).\n\n' +
+    avisoToken + '\nContinuar?',
     ui.ButtonSet.YES_NO
   );
   if (resp !== ui.Button.YES) return;
@@ -137,15 +145,21 @@ function setupPlanilha() {
     '🔐 TOKENS', '⚙️ CONFIG'
   ];
 
-  // Remover abas existentes com esses nomes
+  // Remover abas existentes — PRESERVA 🔐 TOKENS para não perder os OAuth dos atletas
   ABAS.forEach(nome => {
+    if (nome === H.SHEETS.TOKENS) return; // NUNCA deletar TOKENS
     const existente = ss.getSheetByName(nome);
     if (existente) ss.deleteSheet(existente);
   });
 
-  // Criar abas na ordem
+  // Criar abas na ordem (pula TOKENS se já existe)
   const sheets = {};
   ABAS.forEach((nome, i) => {
+    const existente = ss.getSheetByName(nome);
+    if (existente) {
+      sheets[nome] = existente;
+      return;
+    }
     const ws = i === 0 ? ss.insertSheet(nome, 0) : ss.insertSheet(nome, i);
     sheets[nome] = ws;
     SpreadsheetApp.flush();
@@ -165,17 +179,26 @@ function setupPlanilha() {
   _criarFeedback(sheets['💬 FEEDBACK']);
   _criarGraficos(sheets['📉 GRÁFICOS']);
   _criarErros(sheets['🔴 ERROS']);
-  _criarTokens(sheets['🔐 TOKENS']);
+  // Só reinicia TOKENS se estava vazia (preserva conexões OAuth existentes)
+  if (sheets['🔐 TOKENS'].getLastRow() <= 1) _criarTokens(sheets['🔐 TOKENS']);
   _criarConfig(sheets['⚙️ CONFIG']);
+
+  // Proteger TOKENS automaticamente após setup
+  try { protegerAbaTokens(); } catch(e) {}
+
+  // Sincronizar status Strava no CADASTRO
+  try { sincronizarStatusStrava(); } catch(e) {}
 
   // Ativar o painel
   ss.setActiveSheet(sheets['📊 PAINEL']);
 
-  ui.alert('✅ Planilha HIPERATIVO V3 criada com sucesso!',
+  const tokMsg = nTokens > 0 ? '\n🔐 ' + nTokens + ' token(s) OAuth preservados.' : '';
+  ui.alert('✅ Planilha HIPERATIVO V3 criada!',
     'Próximos passos:\n' +
-    '1. Configure ⚙️ CONFIG com seu Client ID e URL do Web App\n' +
-    '2. Use o menu para fazer Setup do Strava OAuth\n' +
-    '3. Registre seu primeiro atleta em 👤 CADASTRO',
+    '1. Menu → Setup → Configurar credenciais (Strava + WebApp URL)\n' +
+    '2. Menu → Atletas → Gerar link Strava para cada atleta\n' +
+    '3. Menu → Atletas → Importar Strava (mês vigente)' +
+    tokMsg,
     ui.ButtonSet.OK);
 }
 
@@ -286,10 +309,58 @@ function _criarPainel(ws) {
     ws.setRowHeight(r, 18);
   }
 
+  // ── Seção: Status de Conexão Strava por Atleta ──────────────────────────────
+  ws.setRowHeight(21, 10); // spacer
+
+  ws.getRange(22, 1, 1, 6).mergeAcross()
+    .setValue('🔐  STATUS DE CONEXÃO STRAVA — TODOS OS ATLETAS')
+    .setFontFamily('Arial').setFontSize(11).setFontWeight('bold')
+    .setFontColor(COR.branco).setBackground(COR.laranja)
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  ws.setRowHeight(22, 26);
+
+  _cabecalho(ws, 23,
+    ['Atleta', 'Strava', 'Última Atividade', 'Qtd Atividades', 'Status', ''],
+    COR.cinza_escuro, 9);
+
+  for (let r = 24; r <= 63; r++) {
+    const idx = r - 23; // índice 1-based no CADASTRO (linha 3 = idx 1)
+    ws.getRange(r, 1).setFormula(
+      `=IFERROR(INDEX('👤 CADASTRO'!B$3:B$500,${idx}),"")`);
+    ws.getRange(r, 2).setFormula(
+      `=IFERROR(IF(INDEX('👤 CADASTRO'!R$3:R$500,${idx})="Sim","✅ Conectado","❌ Pendente"),"")`);
+    ws.getRange(r, 3).setFormula(
+      `=IFERROR(TEXT(MAXIFS('🏃 ATIVIDADES'!D$3:D$500,'🏃 ATIVIDADES'!B$3:B$500,INDEX('👤 CADASTRO'!A$3:A$500,${idx})),"DD/MM/AAAA"),"Nunca")`);
+    ws.getRange(r, 4).setFormula(
+      `=IFERROR(COUNTIF('🏃 ATIVIDADES'!B$3:B$500,INDEX('👤 CADASTRO'!A$3:A$500,${idx})),"")`);
+    ws.getRange(r, 5).setFormula(
+      `=IFERROR(INDEX('👤 CADASTRO'!T$3:T$500,${idx}),"")`);
+
+    const bg = r % 2 === 0 ? COR.branco : '#FFF5EE';
+    ws.getRange(r, 1, 1, 5).setBackground(bg).setFontFamily('Arial').setFontSize(9)
+      .setHorizontalAlignment('center').setVerticalAlignment('middle');
+    ws.setRowHeight(r, 18);
+  }
+
+  // Formatação condicional Strava na coluna B
+  _condTexto(ws, 'B24:B63', '✅ Conectado', COR.verde_claro);
+  _condTexto(ws, 'B24:B63', '❌ Pendente',  COR.vermelho_cl);
+  // Formatação condicional Status na coluna E
+  _condTexto(ws, 'E24:E63', 'Ativo',    COR.verde_claro);
+  _condTexto(ws, 'E24:E63', 'Trial',    COR.amarelo_cl);
+  _condTexto(ws, 'E24:E63', 'Inativo',  COR.vermelho_cl);
+  _condTexto(ws, 'E24:E63', 'Suspenso', '#E8E8E8');
+
   ws.setColumnWidth(1, 12 * 7);
   [1,14,14,12,12,12].forEach((w, i) => ws.setColumnWidth(i+1, w*7));
+  // Larguras específicas para a seção Strava
+  ws.setColumnWidth(1, 140); // Atleta
+  ws.setColumnWidth(2, 105); // Strava
+  ws.setColumnWidth(3, 110); // Última Atividade
+  ws.setColumnWidth(4, 95);  // Qtd Atividades
+  ws.setColumnWidth(5, 80);  // Status
   ws.setFrozenRows(3);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -335,7 +406,7 @@ function _criarCadastro(ws) {
   const larguras = [12,22,24,16,12,9,9,13,13,18,11,12,22,22,20,16,14,15,12,10,26];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -384,7 +455,7 @@ function _criarAtividades(ws) {
   const larguras = [13,11,18,12,12,9,13,22,14,13,12,12,13,14,14,14,10,10,11,10,10,22];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -426,7 +497,7 @@ function _criarPlanoSemanal(ws) {
   const larguras = [12,11,18,13,13,13,32,40,14,44,14,44,14,44,38,16];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -471,7 +542,7 @@ function _criarMetricas(ws) {
   const larguras = [11,18,14,14,16,16,16,10,10,14,13,13,12,12,12,12,12,12];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -514,7 +585,7 @@ function _criarFeedback(ws) {
   const larguras = [13,11,18,12,11,18,13,22,14,14,24,38,32,14];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -548,7 +619,7 @@ function _criarGraficos(ws) {
   ws.setColumnWidth(1, 200);
   ws.setColumnWidth(2, 120);
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -583,7 +654,7 @@ function _criarErros(ws) {
   const larguras = [18,10,12,22,42,42,12,36];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
 
@@ -613,9 +684,295 @@ function _criarTokens(ws) {
   const larguras = [12,15,46,46,18,16,18,14];
   larguras.forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
+
 }
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// DIAGNÓSTICO RÁPIDO — CONFIG + TOKENS + ERROS
+// ════════════════════════════════════════════════════════════════════════════
+function diagnosticoRapido() {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ui    = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+
+  // 1. Credenciais
+  const clientId  = props.getProperty('STRAVA_CLIENT_ID')  || '(não configurado)';
+  const hasSecret = props.getProperty('STRAVA_CLIENT_SECRET') ? 'SIM' : 'NÃO';
+  const webApp    = props.getProperty('WEBAPP_URL') || '(não configurado)';
+
+  // 2. TOKENS sheet
+  const wsTok   = ss.getSheetByName(H.SHEETS.TOKENS);
+  let tokMsg = '(aba não encontrada)';
+  if (wsTok) {
+    const rows = wsTok.getDataRange().getValues();
+    tokMsg = 'Linhas totais: ' + rows.length + '\n';
+    // Mostra até 8 linhas de dados
+    for (let i = 1; i < Math.min(rows.length, 9); i++) {
+      tokMsg += '  [' + i + '] ATH=' + rows[i][0] + ' | STATUS=' + rows[i][7] + '\n';
+    }
+    if (rows.length <= 1) tokMsg += '  *** ABA VAZIA ***';
+  }
+
+  // 3. Últimos 5 erros
+  const wsErr = ss.getSheetByName(H.SHEETS.ERROS);
+  let errMsg = '(aba não encontrada)';
+  if (wsErr) {
+    const rows = wsErr.getDataRange().getValues();
+    const last = rows.slice(-5);
+    errMsg = last.map(r => (r[0] ? String(r[0]).slice(0,10) : '') + ' | ' + r[3] + ' | ' + String(r[4]).slice(0,60)).join('\n');
+    if (rows.length <= 1) errMsg = '(sem erros registrados)';
+  }
+
+  ui.alert('🔍 Diagnóstico Rápido',
+    '── CREDENCIAIS ──\n' +
+    'CLIENT_ID: ' + clientId + '\n' +
+    'CLIENT_SECRET configurado: ' + hasSecret + '\n' +
+    'WEBAPP_URL: ' + webApp.slice(0, 80) + '\n\n' +
+    '── TOKENS ──\n' + tokMsg + '\n\n' +
+    '── ÚLTIMOS ERROS ──\n' + errMsg,
+    ui.ButtonSet.OK);
+}
+
+// ── CORRIGIR IDs NA ABA TOKENS ───────────────────────────────────────────────
+// Esquema antigo: col A = "TOK_...", col B = ATH_ID interno (ex: ATH992736).
+// Esquema novo:   col A = ATH_ID, col B = Strava numeric ID.
+// Para tokens antigos: basta copiar col B → col A.
+// Para Rachel (col A = nome, col B = Strava numeric ID): busca ATH_ID no CADASTRO.
+function corrigirTokenIds() {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const ui  = SpreadsheetApp.getUi();
+  const wsTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  const wsCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!wsTok || !wsCad) { ui.alert('Aba TOKENS ou CADASTRO não encontrada.'); return; }
+
+  // Mapa numeric stravaId → athId (para tokens no novo formato que perderam o athId)
+  const cadRows = wsCad.getDataRange().getValues().slice(2);
+  const stravaNumericMap = {};
+  cadRows.forEach(function(r) {
+    const athId   = String(r[H.CAD.ID       - 1] || '').trim();
+    const stravaId= String(r[H.CAD.STRAVA_ID - 1] || '').trim();
+    if (athId && stravaId && /^\d+$/.test(stravaId)) stravaNumericMap[stravaId] = athId;
+  });
+
+  const tokRows = wsTok.getDataRange().getValues();
+  let fixed = 0, notFound = 0, msgs = [];
+
+  for (let i = 1; i < tokRows.length; i++) {
+    const colA = String(tokRows[i][0] || '').trim();
+    const colB = String(tokRows[i][1] || '').trim();
+
+    // Já correto: col A começa com ATH (e não TOK/nome)
+    if (colA.startsWith('ATH')) continue;
+
+    if (colA.startsWith('TOK_') && colB.startsWith('ATH')) {
+      // Esquema antigo: col B JÁ tem o ATH_ID — copiar para col A
+      wsTok.getRange(i + 1, 1).setValue(colB);
+      msgs.push('✅ Linha ' + (i+1) + ': "' + colA + '" → ' + colB + ' (ATH em col B)');
+      fixed++;
+    } else if (/^\d+$/.test(colB)) {
+      // Col B tem Strava numeric ID — busca ATH no CADASTRO
+      let athId = stravaNumericMap[colB];
+      if (!athId) {
+        // Tenta por nome parcial em CADASTRO (colA pode ser o nome do atleta)
+        const nameNorm = colA.toLowerCase().trim();
+        cadRows.forEach(function(r) {
+          const nome = String(r[H.CAD.NOME - 1] || '').toLowerCase().trim();
+          if (!athId && nome && nameNorm && nome.includes(nameNorm.split(' ')[0])) {
+            athId = String(r[H.CAD.ID - 1] || '').trim();
+            // Atualiza STRAVA_ID no CADASTRO se estiver vazio
+            const stravaIdAtual = String(r[H.CAD.STRAVA_ID - 1] || '').trim();
+            if (!stravaIdAtual) {
+              const rowIdx = cadRows.indexOf(r) + 3;
+              wsCad.getRange(rowIdx, H.CAD.STRAVA_ID).setValue(colB);
+            }
+          }
+        });
+      }
+      if (athId) {
+        wsTok.getRange(i + 1, 1).setValue(athId);
+        msgs.push('✅ Linha ' + (i+1) + ': "' + colA + '" → ' + athId + ' (via Strava ID ' + colB + ')');
+        fixed++;
+      } else {
+        msgs.push('⚠️  Linha ' + (i+1) + ': "' + colA + '" — Strava ID ' + colB + ' não encontrado no CADASTRO');
+        notFound++;
+      }
+    } else {
+      msgs.push('⚠️  Linha ' + (i+1) + ': "' + colA + '" — col B = "' + colB + '" — não reconhecido');
+      notFound++;
+    }
+  }
+
+  ui.alert('🔧 Correção de Token IDs',
+    'Corrigidos: ' + fixed + ' | Pendentes: ' + notFound + '\n\n' + msgs.join('\n'),
+    ui.ButtonSet.OK);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LINK STRAVA — Gerar link para atleta específico sem prompt
+// ════════════════════════════════════════════════════════════════════════════
+function gerarLinkStravaAmanda() {
+  _gerarEMostrarLinkStrava('ATHF2A39037');
+}
+
+function _gerarEMostrarLinkStrava(athId) {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const clientId  = props.getProperty('STRAVA_CLIENT_ID');
+  const webappUrl = props.getProperty('WEBAPP_URL');
+  if (!clientId || !webappUrl) {
+    ui.alert('❌ Credenciais Strava não configuradas. Configure STRAVA_CLIENT_ID e WEBAPP_URL em Setup → Configurar credenciais.');
+    return;
+  }
+  const callbackUrl = webappUrl + (webappUrl.includes('?') ? '&' : '?') + 'action=strava_callback';
+  const oauthUrl = 'https://www.strava.com/oauth/authorize'
+    + '?client_id='    + clientId
+    + '&redirect_uri=' + encodeURIComponent(callbackUrl)
+    + '&response_type=code'
+    + '&scope=activity%3Aread_all'
+    + '&state='        + athId;
+  _log('SYSTEM', 'INFO', 'gerarLinkStrava', 'URL gerada para ' + athId, oauthUrl);
+  ui.alert('🔗 Link Strava — ' + athId,
+    'Envie este link para a atleta se conectar:\n\n' + oauthUrl,
+    ui.ButtonSet.OK);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LIMPEZA — Desativar cadastros Trial duplicados (mesmo nome, ID timestamp)
+// ════════════════════════════════════════════════════════════════════════════
+function limparDuplicadosTrial() {
+  const ss   = SpreadsheetApp.getActiveSpreadsheet();
+  const ui   = SpreadsheetApp.getUi();
+  const wsCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!wsCad) { ui.alert('Aba CADASTRO não encontrada.'); return; }
+
+  const rows = wsCad.getDataRange().getValues();
+  // Mapa nome→{id, rowIdx, status} para detectar duplicatas
+  const nomeMap = {};
+  rows.slice(2).forEach(function(r, i) {
+    const athId  = String(r[H.CAD.ID     - 1] || '').trim();
+    const nome   = String(r[H.CAD.NOME   - 1] || '').trim().toLowerCase();
+    const status = String(r[H.CAD.STATUS - 1] || '').trim();
+    if (!athId || !nome) return;
+    const entry = { id: athId, rowIdx: i + 3, status: status };
+    if (!nomeMap[nome]) {
+      nomeMap[nome] = [entry];
+    } else {
+      nomeMap[nome].push(entry);
+    }
+  });
+
+  let inativados = 0;
+  const msgs = [];
+
+  Object.keys(nomeMap).forEach(function(nome) {
+    const grupo = nomeMap[nome];
+    if (grupo.length < 2) return;
+
+    // Separa os "principais" (não-Trial ou IDs sem underscore numérico)
+    const principais = grupo.filter(function(e) {
+      return e.status !== 'Trial' || !e.id.match(/^ATH_\d{13}/);
+    });
+    const duplicatas = grupo.filter(function(e) {
+      return e.status === 'Trial' && e.id.match(/^ATH_\d{13}/);
+    });
+
+    // Se há pelo menos 1 entrada principal E entradas Trial com ID timestamp → inativar duplicatas
+    if (principais.length > 0 && duplicatas.length > 0) {
+      duplicatas.forEach(function(d) {
+        wsCad.getRange(d.rowIdx, H.CAD.STATUS).setValue('Inativo');
+        msgs.push('✅ ' + d.id + ' (' + nome + ') → Inativo');
+        inativados++;
+      });
+    }
+  });
+
+  if (inativados === 0) {
+    msgs.push('Nenhum duplicado Trial com ID timestamp encontrado.');
+  }
+
+  _log('SYSTEM', 'INFO', 'limparDuplicadosTrial', 'Inativados: ' + inativados, '');
+  ui.alert('🧹 Duplicados Trial',
+    'Registros inativados: ' + inativados + '\n\n' + msgs.join('\n'),
+    ui.ButtonSet.OK);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// PROTEÇÃO — Proteger aba TOKENS
+// ════════════════════════════════════════════════════════════════════════════
+function protegerAbaTokens() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const ws = ss.getSheetByName(H.SHEETS.TOKENS);
+
+  if (!ws) {
+    ui.alert('⚠️ Aba não encontrada', 'A aba "' + H.SHEETS.TOKENS + '" não foi encontrada.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // Remove proteções existentes na aba
+  ws.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function(p) { p.remove(); });
+
+  const prot = ws.protect().setDescription('Tokens OAuth — somente proprietário');
+  // Remove todos os editores (o proprietário sempre mantém acesso)
+  prot.removeEditors(prot.getEditors());
+
+  _log('SYSTEM', 'INFO', 'protegerAbaTokens', 'Aba "' + H.SHEETS.TOKENS + '" protegida.', '');
+  ui.alert('🔒 Aba protegida!',
+    '"' + H.SHEETS.TOKENS + '" está agora protegida.\n' +
+    'Apenas o proprietário da planilha pode editar.',
+    ui.ButtonSet.OK);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// LIMPEZA — Remover abas redundantes
+// ════════════════════════════════════════════════════════════════════════════
+function limparAbasRedundantes() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const resp = ui.alert(
+    '🗑️ Limpar abas redundantes',
+    'Verificará e deletará (se existirem):\n' +
+    '• BACKUP_CADASTRO_20260606\n' +
+    '• STRAVA_TOKEN_STATUS\n\n' +
+    'E removerá a linha ATH2DA651C5 do CADASTRO.\nContinuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) return;
+
+  let msg = '';
+
+  ['BACKUP_CADASTRO_20260606', 'STRAVA_TOKEN_STATUS'].forEach(function(nome) {
+    const ws = ss.getSheetByName(nome);
+    if (ws) {
+      ss.deleteSheet(ws);
+      msg += '✅ Aba "' + nome + '" deletada\n';
+    } else {
+      msg += 'ℹ️ Aba "' + nome + '" não encontrada\n';
+    }
+  });
+
+  const wsCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (wsCad) {
+    const rows = wsCad.getDataRange().getValues();
+    for (let i = rows.length - 1; i >= 2; i--) {
+      if (String(rows[i][H.CAD.ID - 1]) === 'ATH2DA651C5') {
+        wsCad.deleteRow(i + 1);
+        msg += '✅ Linha ATH2DA651C5 removida do CADASTRO\n';
+        break;
+      }
+    }
+  }
+
+  if (!msg) msg = 'Nenhuma das abas/linhas alvo foi encontrada.';
+  _log('SYSTEM', 'INFO', 'limparAbasRedundantes', msg.replace(/\n/g, ' | '), '');
+  ui.alert('🗑️ Limpeza concluída', msg, ui.ButtonSet.OK);
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // 10. CONFIG
@@ -627,9 +984,11 @@ function _criarConfig(ws) {
 
   _cabecalho(ws, 2, ['Parâmetro','Valor','Descrição',''], COR.cinza_escuro);
 
+  // null em val = fórmula dinâmica (setFormula em vez de setValue)
   const configs = [
     ['STRAVA_CLIENT_ID',        '',      'ID do aplicativo Strava (strava.com/settings/api)'],
     ['WEBAPP_URL',              '',      'URL do Web App publicado no Apps Script (exec)'],
+    ['LINK_CADASTRO',           null,    'Link para alunos se cadastrarem — copie e compartilhe'],
     ['PIN_TREINADOR',           '1234',  'PIN de acesso ao painel do treinador'],
     ['EMAIL_ADMIN',             '',      'E-mail do administrador para notificações automáticas'],
     ['CARGA_CRITICA_RPE',       '8',     'RPE acima deste valor gera alerta de sobrecarga'],
@@ -641,20 +1000,30 @@ function _criarConfig(ws) {
 
   configs.forEach(([param, val, desc], i) => {
     const row = i + 3;
+    const isLink = param === 'LINK_CADASTRO';
     ws.getRange(row, 1).setValue(param).setFontFamily('Courier New').setFontSize(10)
-      .setFontWeight('bold').setFontColor(COR.azul_medio).setBackground(COR.cinza_claro)
+      .setFontWeight('bold')
+      .setFontColor(isLink ? COR.verde : COR.azul_medio).setBackground(COR.cinza_claro)
       .setHorizontalAlignment('left').setVerticalAlignment('middle');
-    ws.getRange(row, 2).setValue(val).setFontFamily('Courier New').setFontSize(10)
-      .setBackground('#FFFDE7').setHorizontalAlignment('center').setVerticalAlignment('middle');
+    if (val === null) {
+      // Fórmula: concatena WEBAPP_URL (linha anterior) + parâmetro de cadastro
+      ws.getRange(row, 2).setFormula(`=B${row-1}&"?cadastro=true"`)
+        .setFontFamily('Courier New').setFontSize(10)
+        .setBackground('#F1F8E9').setFontColor('#2E7D32')
+        .setHorizontalAlignment('left').setVerticalAlignment('middle');
+    } else {
+      ws.getRange(row, 2).setValue(val).setFontFamily('Courier New').setFontSize(10)
+        .setBackground('#FFFDE7').setHorizontalAlignment('center').setVerticalAlignment('middle');
+    }
     ws.getRange(row, 3).setValue(desc).setFontFamily('Arial').setFontSize(10)
-      .setFontStyle('italic').setFontColor('#888888').setBackground(COR.branco)
+      .setFontStyle('italic')
+      .setFontColor(isLink ? '#388E3C' : '#888888').setBackground(isLink ? '#F1F8E9' : COR.branco)
       .setHorizontalAlignment('left').setVerticalAlignment('middle');
     ws.setRowHeight(row, 26);
   });
 
-  ws.getRange('A2:C11').setBorder(true,true,true,true,true,true,'#DDDDDD', SpreadsheetApp.BorderStyle.SOLID);
+  ws.getRange('A2:C12').setBorder(true,true,true,true,true,true,'#DDDDDD', SpreadsheetApp.BorderStyle.SOLID);
 
   [30,28,50,10].forEach((w, i) => ws.setColumnWidth(i+1, w*7));
   ws.setRowHeight(2, 28);
-  ws.setHiddenGridlines(true);
 }
