@@ -63,6 +63,7 @@ function _gerarUrlOAuth(athId) {
   return STRAVA_AUTH_URL + '?' + params;
 }
 
+
 function _processarFormCadastro(p) {
   const athId = (p.athId || '').toUpperCase().trim();
   if (!athId) return HtmlService.createHtmlOutput(_paginaErro('ID inválido', 'Identificador do atleta ausente.'));
@@ -361,6 +362,249 @@ function _salvarTokensPlanilha(athId, tokenData) {
     tokenData.access_token || '', tokenData.refresh_token || '', tokenData.expires_at || '',
     STRAVA_SCOPE, stravaId, agora, 'Ativo'
   ]);
+}
+
+function _isAthIdValido_(athId) {
+  const valor = String(athId || '').trim().toUpperCase();
+  return /^ATH[A-Z0-9_ -]{3,40}$/.test(valor) &&
+    valor !== 'ATH_ID' &&
+    valor.indexOf('IDENTIFICA') < 0 &&
+    valor.indexOf('NOME') < 0;
+}
+
+function _isRefreshTokenValido_(refreshToken) {
+  const valor = String(refreshToken || '').trim();
+  return valor.length >= 20 &&
+    valor.indexOf(' ') < 0 &&
+    valor.toLowerCase() !== 'refresh_token' &&
+    valor.toLowerCase() !== 'undefined' &&
+    valor.toLowerCase() !== 'null';
+}
+
+function _getTokenRow_(athId) {
+  const id = String(athId || '').trim().toUpperCase();
+  if (!_isAthIdValido_(id)) return null;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(H.SHEETS.TOKENS);
+  if (!sheet) return null;
+
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const rowAthId = String(data[i][H.TOK.ATH_ID - 1] || '').trim().toUpperCase();
+    if (rowAthId !== id) continue;
+    return {
+      row: i + 1,
+      execId: data[i][H.TOK.EXEC_ID - 1] || '',
+      athId: rowAthId,
+      nome: data[i][H.TOK.NOME - 1] || '',
+      accessToken: data[i][H.TOK.ACCESS - 1] || '',
+      refreshToken: data[i][H.TOK.REFRESH - 1] || '',
+      expiresAt: data[i][H.TOK.EXPIRES - 1] || '',
+      scope: data[i][H.TOK.SCOPE - 1] || '',
+      stravaId: data[i][H.TOK.STRAVA_ID - 1] || '',
+      atualizadoEm: data[i][H.TOK.ULT_ATU - 1] || '',
+      status: data[i][H.TOK.STATUS - 1] || ''
+    };
+  }
+  return null;
+}
+
+function _logEvento_(athId, funcao, msg) {
+  _log(athId || 'SYSTEM', 'INFO', funcao || '', msg || '', '');
+}
+
+function _logErro_(athId, funcao, erro) {
+  const e = erro || {};
+  _log(athId || 'SYSTEM', 'ERRO', funcao || '', e.message || String(erro || ''), e.stack || '');
+}
+
+function persistirCredenciaisStrava(athId, tokenData) {
+  const id = String(athId || '').trim().toUpperCase();
+  if (!_isAthIdValido_(id)) throw new Error('ATH_ID invalido para persistencia Strava.');
+  if (!tokenData || !_isRefreshTokenValido_(tokenData.refresh_token)) {
+    throw new Error('refresh_token ausente ou invalido na resposta Strava.');
+  }
+  if (!tokenData.access_token) throw new Error('access_token ausente na resposta Strava.');
+  if (!tokenData.athlete || !tokenData.athlete.id) throw new Error('athlete.id ausente na resposta Strava.');
+
+  _salvarTokensPlanilha(id, tokenData);
+  _atualizarStatusCadastro(id, true, tokenData.athlete.id);
+  _logEvento_(id, 'persistirCredenciaisStrava', 'Credenciais Strava persistidas sem expor segredos.');
+  return {
+    ok: true,
+    athId: id,
+    stravaId: String(tokenData.athlete.id),
+    refreshTokenValido: true,
+    accessTokenPresente: true
+  };
+}
+
+function diagnosticoStravaHiperativoV3() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  const props = PropertiesService.getScriptProperties();
+  const resultado = {
+    ok: true,
+    timestamp: new Date(),
+    credenciais: {
+      clientId: !!props.getProperty('STRAVA_CLIENT_ID'),
+      clientSecret: !!props.getProperty('STRAVA_CLIENT_SECRET'),
+      webAppUrl: !!props.getProperty('WEBAPP_URL')
+    },
+    cadastro: { totalLinhas: shCad ? Math.max(shCad.getLastRow() - 1, 0) : 0, atletasValidos: 0 },
+    tokens: { totalTokens: 0, refreshTokensValidos: 0, refreshTokensInvalidos: 0 },
+    pendencias: []
+  };
+
+  if (!shCad) resultado.pendencias.push('Aba CADASTRO ausente.');
+  if (!shTok) resultado.pendencias.push('Aba TOKENS ausente.');
+
+  if (shCad) {
+    const cad = shCad.getDataRange().getValues();
+    for (let i = 1; i < cad.length; i++) {
+      if (_isAthIdValido_(cad[i][H.CAD.ID - 1])) resultado.cadastro.atletasValidos++;
+    }
+  }
+
+  if (shTok) {
+    const tok = shTok.getDataRange().getValues();
+    for (let i = 1; i < tok.length; i++) {
+      const athId = tok[i][H.TOK.ATH_ID - 1];
+      if (!_isAthIdValido_(athId)) continue;
+      resultado.tokens.totalTokens++;
+      if (_isRefreshTokenValido_(tok[i][H.TOK.REFRESH - 1])) resultado.tokens.refreshTokensValidos++;
+      else resultado.tokens.refreshTokensInvalidos++;
+    }
+  }
+
+  if (!resultado.tokens) resultado.tokens = { totalTokens: 0, refreshTokensValidos: 0, refreshTokensInvalidos: 0 };
+  _logEvento_('SYSTEM', 'diagnosticoStravaHiperativoV3',
+    'tokens=' + resultado.tokens.totalTokens +
+    ' refresh_validos=' + resultado.tokens.refreshTokensValidos +
+    ' atletas_validos=' + resultado.cadastro.atletasValidos);
+  Logger.log(JSON.stringify(resultado));
+  return resultado;
+}
+
+function testeValidadorAthId() {
+  const casos = {
+    ATH001: _isAthIdValido_('ATH001'),
+    ATH_1781116630575: _isAthIdValido_('ATH_1781116630575'),
+    cabecalhoIdentificacao: _isAthIdValido_('IDENTIFICACAO'),
+    cabecalhoNome: _isAthIdValido_('Nome Completo'),
+    vazio: _isAthIdValido_('')
+  };
+  if (!casos.ATH001 || !casos.ATH_1781116630575 || casos.cabecalhoIdentificacao || casos.cabecalhoNome || casos.vazio) {
+    throw new Error('testeValidadorAthId falhou: ' + JSON.stringify(casos));
+  }
+  return casos;
+}
+
+function testeRefreshTokenVazio() {
+  const casos = {
+    vazio: _isRefreshTokenValido_(''),
+    undefinedTexto: _isRefreshTokenValido_('undefined'),
+    curto: _isRefreshTokenValido_('abc123'),
+    valido: _isRefreshTokenValido_('refresh_token_exemplo_1234567890')
+  };
+  if (casos.vazio || casos.undefinedTexto || casos.curto || !casos.valido) {
+    throw new Error('testeRefreshTokenVazio falhou: ' + JSON.stringify(casos));
+  }
+  return casos;
+}
+
+function testeTokenRowSemExporSegredos() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  if (!shTok) return { ok: true, motivo: 'Aba TOKENS ausente.' };
+  const data = shTok.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const athId = data[i][H.TOK.ATH_ID - 1];
+    if (!_isAthIdValido_(athId)) continue;
+    const row = _getTokenRow_(athId);
+    return {
+      ok: true,
+      athId: row.athId,
+      row: row.row,
+      temAccessToken: !!row.accessToken,
+      temRefreshToken: !!row.refreshToken,
+      refreshTokenValido: _isRefreshTokenValido_(row.refreshToken),
+      stravaId: row.stravaId || ''
+    };
+  }
+  return { ok: true, motivo: 'Nenhuma linha de token valida encontrada.' };
+}
+
+function verificarStatusStravaAtletas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!shCad) throw new Error('Aba CADASTRO nao encontrada.');
+
+  const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  const tokensPorAthId = {};
+  if (shTok) {
+    const tok = shTok.getDataRange().getValues();
+    for (let i = 1; i < tok.length; i++) {
+      const athId = String(tok[i][H.TOK.ATH_ID - 1] || '').trim().toUpperCase();
+      if (!_isAthIdValido_(athId)) continue;
+      tokensPorAthId[athId] = {
+        refreshValido: _isRefreshTokenValido_(tok[i][H.TOK.REFRESH - 1]),
+        stravaId: tok[i][H.TOK.STRAVA_ID - 1] || '',
+        status: tok[i][H.TOK.STATUS - 1] || '',
+        atualizadoEm: tok[i][H.TOK.ULT_ATU - 1] || ''
+      };
+    }
+  }
+
+  const cad = shCad.getDataRange().getValues();
+  const saida = [[
+    'ATH_ID', 'Nome', 'Email', 'Status Cadastro', 'Strava OK',
+    'Strava ID Cadastro', 'Token Encontrado', 'Refresh Token Valido',
+    'Status Token', 'Ultima Atualizacao Token', 'Observacao'
+  ]];
+  let validos = 0;
+  let ignorados = 0;
+
+  for (let i = 1; i < cad.length; i++) {
+    const athId = String(cad[i][H.CAD.ID - 1] || '').trim().toUpperCase();
+    if (!_isAthIdValido_(athId)) {
+      if (cad[i].join('').trim()) ignorados++;
+      continue;
+    }
+    validos++;
+    const token = tokensPorAthId[athId] || null;
+    saida.push([
+      athId,
+      cad[i][H.CAD.NOME - 1] || '',
+      cad[i][H.CAD.EMAIL - 1] || '',
+      cad[i][H.CAD.STATUS - 1] || '',
+      cad[i][H.CAD.STRAVA_OK - 1] || '',
+      cad[i][H.CAD.STRAVA_ID - 1] || '',
+      token ? 'Sim' : 'Nao',
+      token && token.refreshValido ? 'Sim' : 'Nao',
+      token ? token.status : '',
+      token ? token.atualizadoEm : '',
+      token ? '' : 'Sem token Strava persistido'
+    ]);
+  }
+
+  let shStatus = ss.getSheetByName('📡 STRAVA STATUS');
+  if (!shStatus) shStatus = ss.insertSheet('📡 STRAVA STATUS');
+  shStatus.clearContents();
+  shStatus.getRange(1, 1, saida.length, saida[0].length).setValues(saida);
+  shStatus.getRange(1, 1, 1, saida[0].length).setFontWeight('bold');
+  shStatus.autoResizeColumns(1, saida[0].length);
+
+  const resultado = {
+    validos: validos,
+    ignorados: ignorados,
+    gravados: saida.length - 1
+  };
+  _logEvento_('SYSTEM', 'verificarStatusStravaAtletas',
+    'validos=' + resultado.validos + ' ignorados=' + resultado.ignorados + ' gravados=' + resultado.gravados);
+  return resultado;
 }
 
 // ── 7. IMPORTAR ATIVIDADES ────────────────────────────────────────────────────
