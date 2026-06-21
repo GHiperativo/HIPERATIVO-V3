@@ -254,6 +254,9 @@ function _trocarCodigoPorToken(athId, code) {
   const clientSec = props.getProperty('STRAVA_CLIENT_SECRET') || '';
   if (!clientId || !clientSec) throw new Error('Credenciais Strava não configuradas no sistema.');
 
+  if (!_isAthIdValido_(athId)) throw new Error('ATH_ID invalido para trocar codigo OAuth.');
+  if (!code) throw new Error('Codigo OAuth ausente.');
+
   const resp = UrlFetchApp.fetch(STRAVA_TOKEN_URL, {
     method: 'post',
     payload: {
@@ -267,11 +270,14 @@ function _trocarCodigoPorToken(athId, code) {
   if (resp.getResponseCode() !== 200) {
     throw new Error('Strava retornou erro ' + resp.getResponseCode() + ': ' + resp.getContentText().substring(0, 200));
   }
-  return JSON.parse(resp.getContentText());
+  const tokenData = JSON.parse(resp.getContentText());
+  persistirCredenciaisStrava(athId, tokenData);
+  return tokenData;
 }
 
 // ── 5. REFRESH AUTOMÁTICO DO ACCESS TOKEN ─────────────────────────────────────
 function _getValidAccessToken(athId) {
+  if (!_isAthIdValido_(athId)) throw new Error('ATH_ID invalido para buscar token.');
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(H.SHEETS.TOKENS);
   if (!sheet) throw new Error('Aba de tokens não encontrada. Execute o Setup primeiro.');
@@ -289,7 +295,7 @@ function _getValidAccessToken(athId) {
     const expiresAt    = Number(data[i][H.TOK.EXPIRES  - 1]) || 0;
     const rowIdx       = i + 1;
 
-    if (!refreshToken) throw new Error('Atleta ' + athId + ' sem refresh_token. Reconecte o Strava.');
+    if (!_isRefreshTokenValido_(refreshToken)) throw new Error('Atleta ' + athId + ' sem refresh_token valido. Reconecte o Strava.');
 
     if (accessToken && expiresAt > agora + margemSeg) {
       return accessToken;
@@ -303,6 +309,17 @@ function _getValidAccessToken(athId) {
     sheet.getRange(rowIdx, H.TOK.EXPIRES ).setValue(novoToken.expires_at);
     sheet.getRange(rowIdx, H.TOK.ULT_ATU ).setValue(new Date());
     sheet.getRange(rowIdx, H.TOK.STATUS  ).setValue('Renovado');
+    supaUpsertToken({
+      athId: athId,
+      nome: data[i][H.TOK.NOME - 1] || _getNomeAtleta(athId),
+      accessToken: novoToken.access_token,
+      refreshToken: novoToken.refresh_token || refreshToken,
+      expiresAt: novoToken.expires_at,
+      scope: data[i][H.TOK.SCOPE - 1] || STRAVA_SCOPE,
+      stravaId: data[i][H.TOK.STRAVA_ID - 1] || '',
+      status: 'Renovado',
+      atualizadoEm: new Date()
+    });
 
     _log(athId, 'INFO', '_getValidAccessToken', 'Token renovado. Expira: ' + new Date(novoToken.expires_at * 1000).toISOString(), '');
     return novoToken.access_token;
@@ -311,6 +328,8 @@ function _getValidAccessToken(athId) {
 }
 
 function _refreshAccessToken(athId, refreshToken) {
+  if (!_isAthIdValido_(athId)) throw new Error('ATH_ID invalido para renovar token.');
+  if (!_isRefreshTokenValido_(refreshToken)) throw new Error('refresh_token invalido para renovar token.');
   const props     = PropertiesService.getScriptProperties();
   const clientId  = props.getProperty('STRAVA_CLIENT_ID')     || '';
   const clientSec = props.getProperty('STRAVA_CLIENT_SECRET') || '';
@@ -366,7 +385,7 @@ function _salvarTokensPlanilha(athId, tokenData) {
 
 function _isAthIdValido_(athId) {
   const valor = String(athId || '').trim().toUpperCase();
-  return /^ATH[A-Z0-9_ -]{3,40}$/.test(valor) &&
+  return /^ATH(_)?[A-Z0-9]+$/i.test(valor) &&
     valor !== 'ATH_ID' &&
     valor.indexOf('IDENTIFICA') < 0 &&
     valor.indexOf('NOME') < 0;
@@ -419,6 +438,121 @@ function _logErro_(athId, funcao, erro) {
   _log(athId || 'SYSTEM', 'ERRO', funcao || '', e.message || String(erro || ''), e.stack || '');
 }
 
+function _supaConfig_() {
+  const props = PropertiesService.getScriptProperties();
+  const url = String(props.getProperty('SUPABASE_URL') || '').replace(/\/$/, '');
+  const key = props.getProperty('SUPABASE_SERVICE_ROLE_KEY') ||
+    props.getProperty('SUPABASE_SERVICE_KEY') ||
+    props.getProperty('SUPABASE_KEY') ||
+    '';
+  if (!url || !key) throw new Error('Supabase nao configurado: SUPABASE_URL e chave de servico ausentes.');
+  return { url: url, key: key };
+}
+
+function _supaFetch_(path, method, payload, extraHeaders) {
+  const cfg = _supaConfig_();
+  const headers = Object.assign({
+    apikey: cfg.key,
+    Authorization: 'Bearer ' + cfg.key,
+    'Content-Type': 'application/json',
+    Prefer: 'return=minimal'
+  }, extraHeaders || {});
+  const resp = UrlFetchApp.fetch(cfg.url + path, {
+    method: method,
+    headers: headers,
+    payload: payload ? JSON.stringify(payload) : undefined,
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('Supabase HTTP ' + code + ': ' + resp.getContentText().substring(0, 300));
+  }
+  return true;
+}
+
+function _supaGetJson_(path) {
+  const cfg = _supaConfig_();
+  const resp = UrlFetchApp.fetch(cfg.url + path, {
+    method: 'get',
+    headers: {
+      apikey: cfg.key,
+      Authorization: 'Bearer ' + cfg.key,
+      Accept: 'application/json'
+    },
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('Supabase HTTP ' + code + ': ' + resp.getContentText().substring(0, 300));
+  }
+  return JSON.parse(resp.getContentText() || '[]');
+}
+
+function supaUpsertToken(token) {
+  token = token || {};
+  const athId = String(token.athId || token.ath_id || '').trim().toUpperCase();
+  if (!_isAthIdValido_(athId)) throw new Error('ATH_ID invalido para upsert Supabase.');
+  const refreshToken = token.refreshToken || token.refresh_token || '';
+  if (!_isRefreshTokenValido_(refreshToken)) throw new Error('refresh_token invalido para upsert Supabase.');
+
+  const row = {
+    ath_id: athId,
+    nome: token.nome || _getNomeAtleta(athId) || athId,
+    access_token: token.accessToken || token.access_token || '',
+    refresh_token: refreshToken,
+    expires_at: token.expiresAt || token.expires_at || '',
+    scope: token.scope || STRAVA_SCOPE,
+    strava_id: token.stravaId || token.strava_id || '',
+    status: token.status || 'Ativo',
+    ult_atu: token.atualizadoEm ? new Date(token.atualizadoEm).toISOString() : new Date().toISOString()
+  };
+  _supaFetch_('/rest/v1/tokens_strava?on_conflict=ath_id', 'post', row, {
+    Prefer: 'resolution=merge-duplicates,return=minimal'
+  });
+  _logEvento_(athId, 'supaUpsertToken', 'Token Strava enviado ao Supabase sem expor segredos.');
+  return true;
+}
+
+function supaAtualizarStravaOk(athId, stravaId) {
+  const id = String(athId || '').trim().toUpperCase();
+  if (!_isAthIdValido_(id)) throw new Error('ATH_ID invalido para atualizar atleta no Supabase.');
+  if (!stravaId) throw new Error('strava_id ausente para atualizar atleta no Supabase.');
+  _supaFetch_('/rest/v1/atletas?ath_id=eq.' + encodeURIComponent(id), 'patch', {
+    strava_ok: 'Sim',
+    strava_id: String(stravaId),
+    updated_at: new Date().toISOString()
+  });
+  _logEvento_(id, 'supaAtualizarStravaOk', 'Atleta atualizado no Supabase com strava_id.');
+  return true;
+}
+
+function diagnosticoSupabase() {
+  const resultado = {
+    ok: true,
+    tokens: { totalTokens: 0 },
+    atletas: { totalAtletas: 0, comStravaId: 0, semStravaId: 0 },
+    erro: ''
+  };
+  try {
+    const tokens = _supaGetJson_('/rest/v1/tokens_strava?select=ath_id,strava_id,scope,status,expires_at,ult_atu&limit=1000');
+    const atletas = _supaGetJson_('/rest/v1/atletas?select=ath_id,strava_id,strava_ok,updated_at&limit=1000');
+    resultado.tokens.totalTokens = Array.isArray(tokens) ? tokens.length : 0;
+    resultado.atletas.totalAtletas = Array.isArray(atletas) ? atletas.length : 0;
+    if (Array.isArray(atletas)) {
+      atletas.forEach(a => {
+        if (a && a.strava_id) resultado.atletas.comStravaId++;
+        else resultado.atletas.semStravaId++;
+      });
+    }
+  } catch (err) {
+    resultado.ok = false;
+    resultado.erro = err.message;
+    _logErro_('SYSTEM', 'diagnosticoSupabase', err);
+  }
+  Logger.log(JSON.stringify(resultado));
+  return resultado;
+}
+
 function persistirCredenciaisStrava(athId, tokenData) {
   const id = String(athId || '').trim().toUpperCase();
   if (!_isAthIdValido_(id)) throw new Error('ATH_ID invalido para persistencia Strava.');
@@ -430,6 +564,18 @@ function persistirCredenciaisStrava(athId, tokenData) {
 
   _salvarTokensPlanilha(id, tokenData);
   _atualizarStatusCadastro(id, true, tokenData.athlete.id);
+  supaUpsertToken({
+    athId: id,
+    nome: _getNomeAtleta(id),
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token,
+    expiresAt: tokenData.expires_at || '',
+    scope: tokenData.scope || STRAVA_SCOPE,
+    stravaId: tokenData.athlete.id,
+    status: 'Ativo',
+    atualizadoEm: new Date()
+  });
+  supaAtualizarStravaOk(id, tokenData.athlete.id);
   _logEvento_(id, 'persistirCredenciaisStrava', 'Credenciais Strava persistidas sem expor segredos.');
   return {
     ok: true,
@@ -492,11 +638,14 @@ function testeValidadorAthId() {
   const casos = {
     ATH001: _isAthIdValido_('ATH001'),
     ATH_1781116630575: _isAthIdValido_('ATH_1781116630575'),
+    comHifen: _isAthIdValido_('ATH-001'),
+    comEspaco: _isAthIdValido_('ATH 001'),
     cabecalhoIdentificacao: _isAthIdValido_('IDENTIFICACAO'),
     cabecalhoNome: _isAthIdValido_('Nome Completo'),
     vazio: _isAthIdValido_('')
   };
-  if (!casos.ATH001 || !casos.ATH_1781116630575 || casos.cabecalhoIdentificacao || casos.cabecalhoNome || casos.vazio) {
+  if (!casos.ATH001 || !casos.ATH_1781116630575 || casos.comHifen || casos.comEspaco ||
+      casos.cabecalhoIdentificacao || casos.cabecalhoNome || casos.vazio) {
     throw new Error('testeValidadorAthId falhou: ' + JSON.stringify(casos));
   }
   return casos;
@@ -635,9 +784,9 @@ function _importarTodosAtletas() {
   const data = sheet.getDataRange().getValues();
   const msgs = [];
   for (let i = 1; i < data.length; i++) {
-    const athId  = String(data[i][H.TOK.ATH_ID - 1] || '').trim();
+    const athId  = String(data[i][H.TOK.ATH_ID - 1] || '').trim().toUpperCase();
     const status = String(data[i][H.TOK.STATUS  - 1] || '').toLowerCase();
-    if (!athId || status === 'inativo') continue;
+    if (!_isAthIdValido_(athId) || status === 'inativo') continue;
     try {
       const n = _importarAtividadesAtleta(athId, 3);
       msgs.push(athId + ': ' + n + ' atividades');
