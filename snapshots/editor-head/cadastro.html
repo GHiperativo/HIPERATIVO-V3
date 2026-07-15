@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <title>Cadastro — Grupo Hiperativo</title>
+  <style>
+    :root {
+      --verde:   #00c853;
+      --verde2:  #00e676;
+      --preto:   #0a0a0a;
+      --card:    #141414;
+      --card2:   #1c1c1c;
+      --borda:   #2a2a2a;
+      --borda2:  #333;
+      --texto:   #e8e8e8;
+      --texto2:  #999;
+      --erro:    #ff4444;
+      --laranja: #fc4c02;
+      --amarelo: #ffb300;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, Arial, sans-serif;
+      background: var(--preto);
+      color: var(--texto);
+      min-height: 100vh;
+    }
+
+    /* ─── HEADER ─────────────────────────────────────────── */
+    .header {
+      background: #000;
+      border-bottom: 2px solid var(--verde);
+      padding: 32px 20px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(0,200,83,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .logo-wrap { display: inline-block; position: relative; margin-bottom: 16px; }
+    .logo-svg { display: block; margin: 0 auto; }
+    .tagline { color: var(--verde); font-size: .7rem; letter-spacing: 5px; font-weight: 600; margin-top: 6px; }
+    .header-sub { color: var(--texto2); font-size: .88rem; margin-top: 12px; }
+
+    /* ─── PROGRESSO ─────────────────────────────────────── */
+    .steps-bar {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 16px 20px;
+      background: #000;
+      border-bottom: 1px solid var(--borda);
+      flex-wrap: wrap;
+    }
+    .step-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--card2);
+      border: 2px solid var(--borda2);
+      font-size: .7rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--texto2);
+      transition: all .3s;
+      cursor: default;
+    }
+    .step-dot.ativo  { border-color: var(--verde); color: var(--verde); }
+    .step-dot.feito  { background: var(--verde); border-color: var(--verde); color: #000; }
+    .step-line { flex: 1; max-width: 32px; height: 2px; background: var(--borda2); align-self: center; transition: background .3s; }
+    .step-line.feita { background: var(--verde); }
+
+    /* ─── CONTAINER ─────────────────────────────────────── */
+    .container { max-width: 740px; margin: 0 auto; padding: 24px 16px 60px; }
+
+    /* ─── SECOES ─────────────────────────────────────────── */
+    .secao { display: none; }
+    .secao.ativa { display: block; }
+
+    /* ─── CARD ──────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--borda);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: var(--card2);
+      border-bottom: 1px solid var(--borda2);
+      padding: 14px 20px;
+      font-size: .92rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--verde);
+      text-transform: uppercase;
+    }
+    .card-header .badge {
+      margin-left: auto;
+      font-size: .68rem;
+      color: var(--texto2);
+      background: var(--borda);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .card-body { padding: 24px 20px 8px; }
+
+    /* ─── FORM ELEMENTS ─────────────────────────────────── */
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 200px; margin-bottom: 18px; }
+    .form-group.full { flex: 100%; min-width: 100%; }
+    .form-group.w33 { flex: 0 0 calc(33.333% - 10px); min-width: 140px; }
+
+    label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--texto2);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    label .req { color: var(--verde); }
+
+    input[type=text], input[type=email], input[type=date],
+    input[type=number], input[type=tel], select, textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 8px;
+      font-size: .95rem;
+      background: #1a1a1a;
+      color: var(--texto);
+      transition: border-color .2s, box-shadow .2s;
+      appearance: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--verde);
+      box-shadow: 0 0 0 3px rgba(0,200,83,.12);
+    }
+    input::placeholder { color: #555; }
+    textarea { resize: vertical; min-height: 72px; }
+    select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    select option { background: #1a1a1a; }
+    .input-hint { font-size: .74rem; color: #555; margin-top: 4px; }
+    .wa-link-preview { font-size: .78rem; color: var(--verde); margin-top: 4px; display: none; word-break: break-all; }
+
+    /* ─── PAR-Q ──────────────────────────────────────────── */
+    .parq-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--borda);
+    }
+    .parq-item:last-of-type { border-bottom: none; }
+    .parq-pergunta { flex: 1; font-size: .9rem; color: var(--texto); line-height: 1.5; }
+    .parq-pergunta .num { color: var(--verde); font-weight: 700; margin-right: 6px; }
+    .parq-toggle { display: flex; gap: 6px; flex-shrink: 0; }
+    .parq-btn {
+      padding: 7px 16px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 6px;
+      background: #1a1a1a;
+      color: var(--texto2);
+      font-size: .8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      letter-spacing: .5px;
+    }
+    .parq-btn.sim.ativo  { background: rgba(255,68,68,.15); border-color: var(--erro); color: var(--erro); }
+    .parq-btn.nao.ativo  { background: rgba(0,200,83,.1); border-color: var(--verde); color: var(--verde); }
+    .parq-btn:hover      { border-color: var(--texto2); color: var(--texto); }
+    .parq-alerta {
+      display: none;
+      background: rgba(255,179,0,.08);
+      border: 1px solid rgba(255,179,0,.3);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-top: 16px;
+      font-size: .85rem;
+      color: var(--amarelo);
+      line-height: 1.6;
+    }
+
+    /* ─── MULTI-CHECK ──────────────────────────────────── */
+    .multi-check-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .mc-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 8px;
+      background: #1a1a1a;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .mc-item:hover { border-color: var(--verde); }
+    .mc-item input[type=checkbox] {
+      width: 18px; height: 18px; min-width: 18px;
+      accent-color: var(--verde); cursor: pointer;
+    }
+    .mc-item input[type=checkbox]:checked ~ .mc-label { color: var(--verde2); }
+    .mc-item:has(input:checked) { border-color: var(--verde); background: rgba(0,200,83,.07); }
+    .mc-label { font-size: .88rem; color: var(--texto2); }
+    .mc-label .mc-emoji { margin-right: 4px; }
+    .mc-hint { font-size: .74rem; color: #555; margin-bottom: 12px; }
+
+    /* ─── PROGRAMAS ─────────────────────────────────────── */
+    .programas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .programa-card input[type=radio] { display: none; }
+    .programa-card label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 16px 10px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 10px;
+      cursor: pointer;
+      background: #1a1a1a;
+      transition: all .2s;
+      color: var(--texto2);
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: .9rem;
+    }
+    .programa-card input[type=radio]:checked + label {
+      border-color: var(--verde);
+      background: rgba(0,200,83,.07);
+      color: var(--verde2);
+      box-shadow: 0 0 0 2px rgba(0,200,83,.15);
+    }
+    .programa-card label .emoji { font-size: 1.8rem; margin-bottom: 6px; }
+    .programa-card label .nome { font-weight: 700; font-size: .84rem; color: var(--texto); }
+    .programa-card input[type=radio]:checked + label .nome { color: var(--verde); }
+    .programa-card label .desc { font-size: .72rem; color: #666; margin-top: 4px; line-height: 1.3; }
+
+    /* ─── TERMOS ────────────────────────────────────────── */
+    .termos-box {
+      background: #111;
+      border: 1px solid var(--borda2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: .8rem;
+      color: #777;
+      line-height: 1.6;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+    .termos-box strong { color: var(--texto2); }
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      cursor: pointer;
+    }
+    .check-row input[type=checkbox] {
+      width: 20px; height: 20px; min-width: 20px;
+      accent-color: var(--verde); cursor: pointer; margin-top: 1px;
+    }
+    .check-row span { font-size: .83rem; color: var(--texto2); line-height: 1.5; }
+    .check-row span .hl { color: var(--verde); font-weight: 600; }
+
+    /* ─── ASSINATURA ────────────────────────────────────── */
+    .assinatura-wrap {
+      border: 1.5px dashed var(--borda2);
+      border-radius: 8px;
+      padding: 18px;
+      background: #111;
+      margin-top: 10px;
+    }
+    .assinatura-wrap label { color: var(--texto2); margin-bottom: 8px; }
+    .assinatura-wrap input { font-style: italic; letter-spacing: 1px; }
+    .assinatura-ts { font-size: .74rem; color: #555; margin-top: 6px; }
+
+    /* ─── BOTÕES NAV ────────────────────────────────────── */
+    .nav-btns {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      margin-bottom: 20px;
+    }
+    .btn-prev {
+      flex: 1;
+      padding: 14px;
+      background: transparent;
+      color: var(--texto2);
+      border: 1.5px solid var(--borda2);
+      border-radius: 10px;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all .2s;
+    }
+    .btn-prev:hover { border-color: var(--texto2); color: var(--texto); }
+    .btn-next {
+      flex: 2;
+      padding: 14px;
+      background: var(--verde);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 900;
+      cursor: pointer;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: background .2s, transform .1s;
+    }
+    .btn-next:hover:not(:disabled) { background: var(--verde2); transform: translateY(-1px); }
+    .btn-next:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ─── TELA STRAVA ───────────────────────────────────── */
+    #telaStrava {
+      display: none;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .strava-success-icon { font-size: 3rem; margin-bottom: 16px; }
+    .strava-success-titulo { font-size: 1.4rem; font-weight: 900; color: var(--verde); margin-bottom: 8px; }
+    .strava-success-sub { color: var(--texto2); font-size: .92rem; line-height: 1.6; margin-bottom: 28px; }
+    .strava-card-conn {
+      background: var(--card);
+      border: 1px solid var(--borda);
+      border-radius: 12px;
+      padding: 28px;
+      max-width: 480px;
+      margin: 0 auto 16px;
+    }
+    .strava-card-conn h3 { color: var(--texto); margin-bottom: 10px; font-size: 1rem; }
+    .strava-card-conn p  { color: var(--texto2); font-size: .85rem; line-height: 1.6; margin-bottom: 20px; }
+    .btn-strava {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--laranja);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .5px;
+      transition: background .2s, transform .1s;
+      text-decoration: none;
+    }
+    .btn-strava:hover { background: #e04000; transform: translateY(-1px); }
+    .btn-strava-pular {
+      display: block;
+      margin-top: 14px;
+      font-size: .8rem;
+      color: #555;
+      cursor: pointer;
+      background: none;
+      border: none;
+      text-decoration: underline;
+    }
+    .btn-strava-pular:hover { color: var(--texto2); }
+    .strava-timer {
+      font-size: .78rem;
+      color: var(--amarelo);
+      margin-top: 12px;
+    }
+    .beneficios {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .beneficio {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .85rem;
+      color: var(--texto2);
+    }
+    .beneficio-ico { font-size: 1.1rem; flex-shrink: 0; }
+
+    /* ─── PROGRESS BAR ──────────────────────────────────── */
+    .progress-bar {
+      display: none;
+      height: 3px;
+      background: var(--borda2);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--verde);
+      animation: prog 1.5s ease-in-out infinite;
+    }
+    @keyframes prog {
+      0%   { width: 0%; margin-left: 0; }
+      50%  { width: 60%; margin-left: 20%; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* ─── MENSAGEM ──────────────────────────────────────── */
+    #msg {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      margin-top: 16px;
+      text-align: center;
+      font-size: .92rem;
+      line-height: 1.5;
+    }
+    #msg.ok  { background: rgba(0,200,83,.1); color: var(--verde); border: 1px solid rgba(0,200,83,.3); }
+    #msg.err { background: rgba(255,68,68,.1); color: var(--erro);  border: 1px solid rgba(255,68,68,.3); }
+
+    /* ─── RESPONSIVO ────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .header h1 { font-size: 1.6rem; }
+      .form-row { flex-direction: column; }
+      .form-group, .form-group.w33 { min-width: 100%; flex: 100%; }
+      .programas-grid { grid-template-columns: 1fr 1fr; }
+      .parq-item { flex-direction: column; }
+      .parq-toggle { align-self: flex-end; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-wrap">
+    <svg class="logo-svg" viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" style="width:220px;height:85px;">
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="7"
+              stroke-dasharray="175 76" stroke-dashoffset="-10" stroke-linecap="butt"/>
+      <polygon points="58,4 30,52 48,52 42,96 72,44 54,44" fill="#fff"/>
+      <text x="105" y="48" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2" dominant-baseline="auto">HIPER</text>
+      <text x="105" y="95" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2" dominant-baseline="auto">ATIVO</text>
+    </svg>
+  </div>
+  <div class="tagline">CABEÇA &bull; CORAÇÃO &bull; CORPO</div>
+  <div class="header-sub">Preencha o formulário para fazer parte do grupo</div>
+</div>
+
+<!-- BARRA DE PROGRESSO -->
+<div class="steps-bar" id="stepsBar">
+  <div class="step-dot ativo" id="dot1">1</div>
+  <div class="step-line" id="line1"></div>
+  <div class="step-dot" id="dot2">2</div>
+  <div class="step-line" id="line2"></div>
+  <div class="step-dot" id="dot3">3</div>
+  <div class="step-line" id="line3"></div>
+  <div class="step-dot" id="dot4">4</div>
+  <div class="step-line" id="line4"></div>
+  <div class="step-dot" id="dot5">5</div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════
+     SEÇÃO 1 — DADOS PESSOAIS + EMERGÊNCIA
+     ══════════════════════════════════════════════════ -->
+<div class="secao ativa" id="sec1">
+
+  <div class="card">
+    <div class="card-header">👤 Dados Pessoais <span class="badge">Obrigatório</span></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" name="nome" id="nome" placeholder="Seu nome completo" required maxlength="100" autocomplete="name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>E-mail <span class="req">*</span></label>
+          <input type="email" name="email" id="email" placeholder="seu@email.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp <span class="req">*</span></label>
+          <input type="tel" name="whats" id="whatsInput" placeholder="(61) 99999-9999" required
+                 oninput="onWhatsInput(this)" autocomplete="tel">
+          <div class="wa-link-preview" id="waLinkPreview"></div>
+          <div class="input-hint">Com DDD — será normalizado para +5561999999999</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data de Nascimento <span class="req">*</span></label>
+          <input type="date" name="nasc" id="nasc" required autocomplete="bday">
+        </div>
+        <div class="form-group">
+          <label>Sexo <span class="req">*</span></label>
+          <select name="sexo" id="sexo" required>
+            <option value="">Selecione...</option>
+            <option value="M">Masculino</option>
+            <option value="F">Feminino</option>
+            <option value="O">Prefiro não informar</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Peso (kg)</label>
+          <input type="number" name="peso" placeholder="Ex: 72" min="30" max="250" step="0.1">
+        </div>
+        <div class="form-group">
+          <label>Altura (cm)</label>
+          <input type="number" name="altura" placeholder="Ex: 175" min="100" max="250">
+        </div>
+        <div class="form-group">
+          <label>CPF</label>
+          <input type="text" name="cpf" placeholder="000.000.000-00" maxlength="14" oninput="mascararCpf(this)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cidade <span class="req">*</span></label>
+          <input type="text" name="cidade" placeholder="Sua cidade" required>
+        </div>
+        <div class="form-group">
+          <label>Estado <span class="req">*</span></label>
+          <select name="estado" required>
+            <option value="">UF...</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+            <option>BA</option><option>CE</option><option selected>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+            <option>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">🚨 Contato de Emergência <span class="badge">Obrigatório</span></div>
+    <div class="card-body">
+      <div class="input-hint" style="margin-bottom:16px;color:var(--texto2)">
+        Será contatado em caso de emergência durante atividades do grupo.
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" name="emerg_nome" placeholder="Nome do contato" required maxlength="100">
+        </div>
+        <div class="form-group">
+          <label>Telefone / WhatsApp <span class="req">*</span></label>
+          <input type="tel" name="emerg_tel" placeholder="(61) 99999-9999" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Parentesco / Relação <span class="req">*</span></label>
+          <select name="emerg_rel" required>
+            <option value="">Selecione...</option>
+            <option>Cônjuge / Companheiro(a)</option>
+            <option>Pai / Mãe</option>
+            <option>Filho(a)</option>
+            <option>Irmão / Irmã</option>
+            <option>Amigo(a)</option>
+            <option>Outro</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-btns">
+    <button type="button" class="btn-next" onclick="irPara(2)">Próximo: Programa →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SEÇÃO 2 — PROGRAMA + PERFIL ESPORTIVO
+     ══════════════════════════════════════════════════ -->
+<div class="secao" id="sec2">
+
+  <div class="card">
+    <div class="card-header">⚡ Programa Hiperativo</div>
+    <div class="card-body">
+      <div class="form-group full" style="margin-bottom:16px;">
+        <label style="text-transform:none;font-size:.85rem;color:var(--texto2);">
+          Qual programa você quer participar? <span class="req">*</span>
+        </label>
+      </div>
+      <div class="programas-grid">
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p1" value="Alta Voltagem" required>
+          <label for="p1">
+            <span class="emoji">⚡</span>
+            <span class="nome">Alta Voltagem</span>
+            <span class="desc">Alta intensidade para resultados máximos</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p2" value="Corrida CCC">
+          <label for="p2">
+            <span class="emoji">🏅</span>
+            <span class="nome">Corrida CCC</span>
+            <span class="desc">Cabeça, Coração e Corpo em cada passada</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p3" value="Iniciante em Movimento">
+          <label for="p3">
+            <span class="emoji">🌱</span>
+            <span class="nome">Iniciante em Movimento</span>
+            <span class="desc">Primeiros passos para uma vida ativa</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p4" value="5k10k em 6 Semanas">
+          <label for="p4">
+            <span class="emoji">🎯</span>
+            <span class="nome">5k/10k em 6 Semanas</span>
+            <span class="desc">Do zero à primeira prova em 6 semanas</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p5" value="Hiperativo Running Club">
+          <label for="p5">
+            <span class="emoji">🏃</span>
+            <span class="nome">Running Club</span>
+            <span class="desc">Treinos em grupo, motivação coletiva</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p6" value="Vida Ativa Melhor Idade">
+          <label for="p6">
+            <span class="emoji">🌟</span>
+            <span class="nome">Melhor Idade</span>
+            <span class="desc">Vida ativa e saudável em qualquer fase</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">🏋️ Perfil Esportivo</div>
+    <div class="card-body">
+
+      <!-- MODALIDADES — Multi-check -->
+      <div class="form-group full" style="margin-bottom:6px;">
+        <label>Modalidade(s) que pratica <span class="req">*</span></label>
+        <div class="mc-hint">Selecione todas que se aplicam</div>
+        <div class="multi-check-grid" id="modGrid">
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Corrida de rua"><span class="mc-label"><span class="mc-emoji">🏃</span>Corrida de rua</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Trail Running"><span class="mc-label"><span class="mc-emoji">⛰️</span>Trail Running</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Ciclismo"><span class="mc-label"><span class="mc-emoji">🚴</span>Ciclismo</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Natação"><span class="mc-label"><span class="mc-emoji">🏊</span>Natação</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Triathlon"><span class="mc-label"><span class="mc-emoji">🥇</span>Triathlon</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Musculação"><span class="mc-label"><span class="mc-emoji">🏋️</span>Musculação</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Funcional"><span class="mc-label"><span class="mc-emoji">⚡</span>Funcional</span></label>
+          <label class="mc-item"><input type="checkbox" name="mod_check" value="Caminhada"><span class="mc-label"><span class="mc-emoji">🚶</span>Caminhada</span></label>
+        </div>
+        <input type="hidden" name="mod" id="modHidden">
+      </div>
+
+      <div class="form-row" style="margin-top:10px;">
+        <div class="form-group">
+          <label>Nível <span class="req">*</span></label>
+          <select name="nivel" required>
+            <option value="">Selecione...</option>
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+            <option>Elite</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frequência Semanal <span class="req">*</span></label>
+          <select name="freq" required>
+            <option value="">Selecione...</option>
+            <option>1-2x por semana</option>
+            <option>3-4x por semana</option>
+            <option>5-6x por semana</option>
+            <option>Todos os dias</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Horário Preferido</label>
+          <select name="horario">
+            <option value="">Selecione...</option>
+            <option>Manhã (5h–9h)</option>
+            <option>Manhã (9h–12h)</option>
+            <option>Tarde (12h–17h)</option>
+            <option>Noite (17h–21h)</option>
+            <option>Noite (21h+)</option>
+            <option>Variável</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- OBJETIVOS — Multi-check (máx 2) -->
+      <div class="form-group full" style="margin-top:6px;margin-bottom:6px;">
+        <label>Objetivo(s) principal(is) <span class="req">*</span></label>
+        <div class="mc-hint">Selecione até 2 objetivos</div>
+        <div class="multi-check-grid">
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Emagrecer / Reduzir gordura" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">⚖️ Emagrecer / Reduzir gordura</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Ganhar massa muscular" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">💪 Ganhar massa muscular</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Melhorar desempenho" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">📈 Melhorar desempenho</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Completar primeira prova" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">🏁 Completar primeira prova</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Saúde e bem-estar" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">❤️ Saúde e bem-estar</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Bater recorde pessoal (PR)" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">🏆 Bater recorde pessoal (PR)</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Reabilitação / Retorno ao esporte" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">🩺 Reabilitação / Retorno</span></label>
+          <label class="mc-item"><input type="checkbox" name="obj_check" value="Longevidade esportiva" onchange="limitarCheck(this,'obj_check',2)"><span class="mc-label">🌱 Longevidade esportiva</span></label>
+        </div>
+        <input type="hidden" name="obj" id="objHidden">
+      </div>
+
+      <!-- PROVAS REALIZADAS — Multi-check -->
+      <div class="form-group full" style="margin-top:6px;border-top:1px solid var(--borda);padding-top:16px;">
+        <label>Provas já realizadas</label>
+        <div class="mc-hint">Selecione todas que já completou</div>
+        <div class="multi-check-grid">
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="5k"><span class="mc-label">🏅 5 km</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="10k"><span class="mc-label">🏅 10 km</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Meia Maratona"><span class="mc-label">🏅 Meia Maratona (21k)</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Maratona"><span class="mc-label">🏅 Maratona (42k)</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Trail"><span class="mc-label">⛰️ Trail / Montanha</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Triathlon"><span class="mc-label">🥇 Triathlon</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Ultra"><span class="mc-label">💪 Ultra (50k+)</span></label>
+          <label class="mc-item"><input type="checkbox" name="prova_check" value="Nunca participei"><span class="mc-label">🌱 Ainda não participei</span></label>
+        </div>
+        <input type="hidden" name="prova" id="provaHidden">
+      </div>
+
+      <!-- MELHORES TEMPOS / PRs -->
+      <div style="border-top:1px solid var(--borda);padding-top:18px;margin-top:4px;">
+        <label style="color:var(--verde);margin-bottom:12px;display:block">⏱️ Melhores Tempos (PRs)</label>
+        <div class="input-hint" style="margin-bottom:14px;">Se não correu a distância, deixe em branco. Formato: MM:SS ou H:MM:SS</div>
+        <div class="form-row">
+          <div class="form-group w33">
+            <label>5 km</label>
+            <input type="text" name="pr_5k" id="pr_5k" placeholder="Ex: 25:30">
+          </div>
+          <div class="form-group w33">
+            <label>10 km</label>
+            <input type="text" name="pr_10k" id="pr_10k" placeholder="Ex: 52:00">
+          </div>
+          <div class="form-group w33">
+            <label>Meia Maratona</label>
+            <input type="text" name="pr_21k" id="pr_21k" placeholder="Ex: 1:55:00">
+          </div>
+          <div class="form-group w33">
+            <label>Maratona</label>
+            <input type="text" name="pr_42k" id="pr_42k" placeholder="Ex: 4:10:00">
+          </div>
+        </div>
+      </div>
+
+      <!-- PRÓXIMA PROVA + INSTAGRAM -->
+      <div style="border-top:1px solid var(--borda);padding-top:18px;margin-top:4px;">
+        <label style="color:var(--verde);margin-bottom:12px;display:block">🎯 Próxima Meta & Redes</label>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Próxima prova / meta</label>
+            <input type="text" name="prox_prova" placeholder="Ex: São Silvestre 15k, Maratona de SP...">
+          </div>
+          <div class="form-group">
+            <label>Data da prova</label>
+            <input type="date" name="data_prova">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Instagram <span style="color:#555;font-weight:400">(opcional)</span></label>
+            <input type="text" name="instagram" placeholder="@seuinstagram" maxlength="50">
+            <div class="input-hint">Usado para marcar nas conquistas e comunicados do grupo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">📣 Como nos Conheceu?</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Canal / Indicação</label>
+          <select name="origem">
+            <option value="">Selecione...</option>
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>Indicação de amigo</option>
+            <option>Google</option>
+            <option>WhatsApp</option>
+            <option>Evento esportivo</option>
+            <option>Strava</option>
+            <option>YouTube</option>
+            <option>TikTok</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quem te indicou?</label>
+          <input type="text" name="obs" placeholder="Nome do atleta ou responsável (opcional)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-btns">
+    <button type="button" class="btn-prev" onclick="irPara(1)">← Voltar</button>
+    <button type="button" class="btn-next" onclick="irPara(3)">Próximo: Saúde →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SEÇÃO 3 — SAÚDE & PAR-Q
+     ══════════════════════════════════════════════════ -->
+<div class="secao" id="sec3">
+
+  <div class="card">
+    <div class="card-header">❤️ Saúde &amp; Histórico</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Condições de Saúde</label>
+          <input type="text" name="saude" placeholder="Ex: Diabetes, hipertensão, asma... (ou 'Nenhuma')">
+          <div class="input-hint">Informações usadas exclusivamente para adequação dos treinos.</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Lesões ou Limitações Físicas</label>
+          <input type="text" name="lesao" placeholder="Ex: Joelho, lombar, tornozelo... (ou 'Nenhuma')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Medicamentos de Uso Contínuo</label>
+          <input type="text" name="med" placeholder="Ex: Anti-hipertensivo, antidepressivo... (ou 'Não uso')">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAR-Q -->
+  <div class="card">
+    <div class="card-header">🩺 PAR-Q — Triagem de Aptidão Física <span class="badge">Physical Activity Readiness</span></div>
+    <div class="card-body" style="padding-bottom:16px;">
+      <div class="input-hint" style="margin-bottom:16px;color:var(--texto2);font-size:.82rem;">
+        Responda SIM ou NÃO honestamente. Respostas SIM podem indicar necessidade de avaliação médica antes de iniciar o programa.
+      </div>
+
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">1.</span>Algum médico já disse que você tem algum problema cardíaco e recomendou atividade física apenas sob supervisão médica?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="1" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="1" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">2.</span>Você sente dor no peito quando pratica alguma atividade física?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="2" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="2" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">3.</span>No último mês, você teve dor no peito sem estar praticando atividade física?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="3" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="3" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">4.</span>Você perde o equilíbrio por causa de tonturas ou já perdeu a consciência alguma vez?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="4" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="4" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">5.</span>Você tem algum problema ósseo ou articular que poderia ser agravado com atividade física (ex: coluna, joelho, quadril)?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="5" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="5" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">6.</span>Algum médico está prescrevendo medicamentos para sua pressão arterial ou problema cardíaco?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="6" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="6" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+      <div class="parq-item">
+        <div class="parq-pergunta"><span class="num">7.</span>Você tem conhecimento de alguma outra razão pela qual não deveria praticar atividade física?</div>
+        <div class="parq-toggle">
+          <button type="button" class="parq-btn sim" data-q="7" onclick="parqToggle(this,'S')">SIM</button>
+          <button type="button" class="parq-btn nao" data-q="7" onclick="parqToggle(this,'N')">NÃO</button>
+        </div>
+      </div>
+
+      <div class="parq-alerta" id="parqAlerta">
+        ⚠️ <strong>Atenção:</strong> Você respondeu SIM a uma ou mais questões. Recomendamos que você consulte um médico antes de iniciar ou intensificar atividades físicas. Isso não impede seu cadastro, mas é importante informar ao seu treinador.
+      </div>
+
+      <!-- Campo oculto que será preenchido pelo JS -->
+      <input type="hidden" name="parq" id="parqHidden" value="">
+    </div>
+  </div>
+
+  <div class="nav-btns">
+    <button type="button" class="btn-prev" onclick="irPara(2)">← Voltar</button>
+    <button type="button" class="btn-next" onclick="irPara(4)">Próximo: Termos →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SEÇÃO 4 — TERMOS, CONSENTIMENTOS E ASSINATURA
+     ══════════════════════════════════════════════════ -->
+<div class="secao" id="sec4">
+
+  <div class="card">
+    <div class="card-header">📋 Termos e Consentimentos</div>
+    <div class="card-body">
+
+      <!-- TERMO DE SAÚDE -->
+      <div class="termos-box">
+        <strong>TERMO DE CONSENTIMENTO DE SAÚDE E ATIVIDADE FÍSICA</strong><br><br>
+        Declaro que as informações de saúde fornecidas neste cadastro são verdadeiras e completas. Autorizo o
+        Grupo Hiperativo a utilizá-las exclusivamente para adequação e prescrição de atividades físicas,
+        de forma confidencial. Estou ciente de que a prática de atividade física intensa requer avaliação
+        médica prévia e que, em caso de dúvida, devo consultar um profissional de saúde antes de iniciar
+        qualquer programa de treinamento. Isento o Grupo Hiperativo de responsabilidade por intercorrências
+        decorrentes de informações omitidas, incorretas ou de condições de saúde não declaradas.
+        Em caso de emergência durante atividades do grupo, autorizo o contato com a pessoa indicada
+        no formulário e a adoção de medidas de primeiros socorros cabíveis.
+      </div>
+      <label class="check-row" for="chkSaude">
+        <input type="checkbox" id="chkSaude" required>
+        <span>Li e <span class="hl">concordo com o Termo de Consentimento de Saúde</span>. Confirmo que minhas informações de saúde são verdadeiras e completas.</span>
+      </label>
+
+      <!-- LGPD -->
+      <div class="termos-box">
+        <strong>POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS (LGPD — Lei 13.709/2018)</strong><br><br>
+        O Grupo Hiperativo coleta e trata seus dados pessoais para: (a) gestão do cadastro de atletas;
+        (b) comunicação sobre treinos, eventos e programas; (c) análise de desempenho esportivo;
+        (d) envio de informações por WhatsApp e e-mail. Seus dados não serão compartilhados com terceiros
+        sem consentimento expresso, exceto por obrigação legal. Você tem direito de acessar, corrigir,
+        excluir ou revogar o consentimento a qualquer momento via contato@ghiperativo.com.br.
+        Os dados serão mantidos pelo período necessário à prestação dos serviços ou conforme exigência legal.
+        Os dados de saúde (informações sensíveis, art. 11 da LGPD) serão tratados com base no consentimento
+        explícito e utilizados exclusivamente para fins de segurança e adequação dos treinos.
+      </div>
+      <label class="check-row" for="chkLgpd">
+        <input type="checkbox" id="chkLgpd" required>
+        <span>Li e <span class="hl">aceito a Política de Privacidade e os Termos de Uso</span> do Grupo Hiperativo, em conformidade com a LGPD.</span>
+      </label>
+
+      <!-- COMUNICAÇÃO -->
+      <label class="check-row" for="chkComm">
+        <input type="checkbox" id="chkComm" required>
+        <span>Autorizo o Grupo Hiperativo a me contatar por <span class="hl">WhatsApp e e-mail</span> para envio de treinos, avisos e informações sobre o programa.</span>
+      </label>
+
+
+
+  <!-- ASSINATURA DIGITAL -->
+  <div class="card">
+    <div class="card-header">✍️ Assinatura Digital</div>
+    <div class="card-body">
+      <div class="input-hint" style="margin-bottom:16px;color:var(--texto2);">
+        Digite seu nome completo abaixo como assinatura digital, confirmando que leu e concordou com todos os termos acima.
+      </div>
+      <div class="assinatura-wrap">
+        <label>Nome completo (assinatura) <span class="req">*</span></label>
+        <input type="text" name="assinatura" id="assinaturaInput"
+               placeholder="Digite seu nome completo aqui..." required maxlength="100"
+               oninput="atualizarAssinaturaTs()">
+        <div class="assinatura-ts" id="assinaturaTs"></div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" name="athId" id="athId" value="<?= athId ?>">
+  <input type="hidden" name="waLink" id="waLink" value="">
+
+  <div class="nav-btns">
+    <button type="button" class="btn-prev" onclick="irPara(3)">← Voltar</button>
+    <button type="button" class="btn-next" id="btnEnviar" onclick="enviarForm()">⚡ FINALIZAR CADASTRO</button>
+  </div>
+  <div class="progress-bar" id="progressBar"><div class="progress-bar-fill"></div></div>
+  <div id="msg"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SEÇÃO 5 — SUCESSO + CONEXÃO STRAVA
+     ══════════════════════════════════════════════════ -->
+<div class="secao" id="sec5">
+  <div id="telaStrava">
+    <div class="strava-success-icon">🎉</div>
+    <div class="strava-success-titulo">Cadastro realizado com sucesso!</div>
+    <div class="strava-success-sub" id="stravaSubTitulo">
+      Bem-vindo(a) ao Grupo Hiperativo!<br>Seu código de atleta: <strong id="athIdExibir"></strong>
+    </div>
+
+    <div style="margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;text-align:center;">
+      <div style="font-size:1.4rem;margin-bottom:12px">📧</div>
+      <p style="font-size:1rem;color:#e8e8e8;font-weight:600;margin-bottom:8px;">Verifique seu e-mail!</p>
+      <p style="font-size:.9rem;color:#aaa;line-height:1.6">Enviamos um link para conectar seu Strava ao HIPERATIVO.<br>Clique no link do e-mail para ativar a importacao automatica dos seus treinos.</p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<script>
+  // ── Estado global ───────────────────────────────────────
+  var secaoAtual = 1;
+  var totalSecoes = 5;
+  var parqRespostas = { 1:'', 2:'', 3:'', 4:'', 5:'', 6:'', 7:'' };
+  var oauthUrlGlobal = '';
+  var timerStrava;
+
+  // ── Pegar athId da URL ──────────────────────────────────
+  (function() {
+    var el = document.getElementById('athId');
+    if (!el || el.value) return;
+    var p = new URLSearchParams(window.location.search);
+    var id = p.get('athId') || p.get('athid') || '';
+    if (id) el.value = id.trim().toUpperCase();
+  })();
+
+  // ── NAVEGAÇÃO ENTRE SEÇÕES ──────────────────────────────
+  function irPara(n) {
+    if (n > secaoAtual && !validarSecao(secaoAtual)) return;
+    document.getElementById('sec' + secaoAtual).classList.remove('ativa');
+    secaoAtual = n;
+    document.getElementById('sec' + secaoAtual).classList.add('ativa');
+    atualizarDots();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function atualizarDots() {
+    for (var i = 1; i <= totalSecoes; i++) {
+      var dot = document.getElementById('dot' + i);
+      if (!dot) continue;
+      dot.classList.remove('ativo', 'feito');
+      if (i < secaoAtual)      dot.classList.add('feito');
+      else if (i === secaoAtual) dot.classList.add('ativo');
+    }
+    for (var j = 1; j < totalSecoes; j++) {
+      var line = document.getElementById('line' + j);
+      if (!line) continue;
+      if (j < secaoAtual) line.classList.add('feita');
+      else                line.classList.remove('feita');
+    }
+  }
+
+  // ── VALIDAÇÃO POR SEÇÃO ──────────────────────────────────
+  function validarSecao(n) {
+    var sec = document.getElementById('sec' + n);
+    if (!sec) return true;
+    var campos = sec.querySelectorAll('[required]');
+    for (var i = 0; i < campos.length; i++) {
+      if (!campos[i].value || campos[i].value.trim() === '') {
+        campos[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        campos[i].focus();
+        campos[i].style.borderColor = 'var(--erro)';
+        setTimeout(function(el) { el.style.borderColor = ''; }, 2000, campos[i]);
+        showMsg('⚠️ Preencha todos os campos obrigatórios (marcados com *).', false);
+        return false;
+      }
+    }
+    // Validar plano na seção 2
+    if (n === 2) {
+      var planoSel = sec.querySelector('input[name=plano]:checked');
+      if (!planoSel) {
+        showMsg('⚠️ Selecione um programa Hiperativo para continuar.', false);
+        return false;
+      }
+    }
+    // PAR-Q na seção 3: todas respondidas
+    if (n === 3) {
+      for (var q = 1; q <= 7; q++) {
+        if (!parqRespostas[q]) {
+          showMsg('⚠️ Responda todas as 7 questões do PAR-Q antes de continuar.', false);
+          return false;
+        }
+      }
+      // Montar string do PAR-Q
+      var parqStr = '';
+      for (var q2 = 1; q2 <= 7; q2++) parqStr += (q2 > 1 ? '/' : '') + parqRespostas[q2];
+      document.getElementById('parqHidden').value = parqStr;
+    }
+    return true;
+  }
+
+  // ── PAR-Q ────────────────────────────────────────────────
+  function parqToggle(btn, resp) {
+    var q = btn.getAttribute('data-q');
+    var par = btn.parentElement;
+    par.querySelectorAll('.parq-btn').forEach(function(b) {
+      b.classList.remove('ativo');
+    });
+    btn.classList.add('ativo');
+    parqRespostas[q] = resp;
+
+    // Mostrar alerta se algum SIM
+    var temSim = Object.values(parqRespostas).indexOf('S') >= 0;
+    document.getElementById('parqAlerta').style.display = temSim ? 'block' : 'none';
+  }
+
+  // ── WHATSAPP ─────────────────────────────────────────────
+  function normalizarWhats(raw) {
+    var d = (raw || '').replace(/\D/g, '');
+    if (!d) return '';
+    if (d.startsWith('0')) d = d.slice(1);
+    if (!d.startsWith('55')) d = '55' + d;
+    return d;
+  }
+
+  function onWhatsInput(el) {
+    var digits = normalizarWhats(el.value);
+    var preview = document.getElementById('waLinkPreview');
+    var linkInput = document.getElementById('waLink');
+    if (digits.length >= 12) {
+      var waUrl = 'https://wa.me/' + digits;
+      preview.textContent = '🔗 ' + waUrl;
+      preview.style.display = 'block';
+      linkInput.value = waUrl;
+    } else {
+      preview.style.display = 'none';
+      linkInput.value = '';
+    }
+  }
+
+  // ── CPF ──────────────────────────────────────────────────
+  function mascararCpf(el) {
+    var v = el.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    el.value = v;
+  }
+
+  // ── ASSINATURA TIMESTAMP ─────────────────────────────────
+  function atualizarAssinaturaTs() {
+    var input = document.getElementById('assinaturaInput');
+    var ts = document.getElementById('assinaturaTs');
+    if (input.value.trim()) {
+      var agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      ts.textContent = '📅 Assinado digitalmente em ' + agora;
+    } else {
+      ts.textContent = '';
+    }
+  }
+
+  // ── MULTI-CHECK: limitar seleções ────────────────────────
+  function limitarCheck(el, nome, max) {
+    var marcados = document.querySelectorAll('input[name="' + nome + '"]:checked');
+    if (marcados.length > max) {
+      el.checked = false;
+      showMsg('⚠️ Selecione no máximo ' + max + ' opção(ões) para este campo.', false);
+    }
+  }
+
+  // ── COLETAR MULTI-CHECKS ─────────────────────────────────
+  function coletarMultiCheck(nome) {
+    var vals = [];
+    document.querySelectorAll('input[name="' + nome + '"]:checked').forEach(function(el) {
+      vals.push(el.value);
+    });
+    return vals.join(', ');
+  }
+
+  // ── ENVIAR FORMULÁRIO ────────────────────────────────────
+  function enviarForm() {
+    // Validar checkboxes
+    if (!document.getElementById('chkSaude').checked) {
+      showMsg('⚠️ Você precisa aceitar o Termo de Consentimento de Saúde.', false);
+      document.getElementById('chkSaude').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!document.getElementById('chkLgpd').checked) {
+      showMsg('⚠️ Você precisa aceitar a Política de Privacidade (LGPD).', false);
+      document.getElementById('chkLgpd').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!document.getElementById('chkComm').checked) {
+      showMsg('⚠️ Você precisa autorizar o contato por WhatsApp/e-mail para prosseguir.', false);
+      document.getElementById('chkComm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!document.getElementById('assinaturaInput').value.trim()) {
+      showMsg('⚠️ Digite seu nome na assinatura digital para finalizar.', false);
+      document.getElementById('assinaturaInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    var btn = document.getElementById('btnEnviar');
+    var prog = document.getElementById('progressBar');
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+    prog.style.display = 'block';
+
+    // Empacotar multi-checks nos hidden inputs antes de coletar
+    document.getElementById('modHidden').value   = coletarMultiCheck('mod_check')   || 'Outra';
+    document.getElementById('objHidden').value   = coletarMultiCheck('obj_check')   || '';
+    document.getElementById('provaHidden').value = coletarMultiCheck('prova_check') || '';
+
+    // Coletar todos os campos do formulário inteiro
+    var data = {};
+
+    // Percorre todos os campos com name em todas as seções
+    document.querySelectorAll('[name]').forEach(function(el) {
+      if (el.name.endsWith('_check')) return; // ignorar os checkboxes de multi-select individualmente
+      if (el.type === 'radio' && !el.checked) return;
+      if (el.type === 'checkbox') { data[el.name] = el.checked ? 'Sim' : 'Não'; return; }
+      data[el.name] = el.value;
+    });
+
+    // Normalizar WhatsApp
+    var whatsDigits = normalizarWhats(data.whats || '');
+    if (whatsDigits) {
+      data.whats  = '+' + whatsDigits;
+      data.waLink = 'https://wa.me/' + whatsDigits;
+    }
+
+    // Montar PRs como string única
+    var prs = [];
+    if (data.pr_5k)  prs.push('5k:' + data.pr_5k);
+    if (data.pr_10k) prs.push('10k:' + data.pr_10k);
+    if (data.pr_21k) prs.push('21k:' + data.pr_21k);
+    if (data.pr_42k) prs.push('42k:' + data.pr_42k);
+    data.pr_tempos = prs.join('|');
+
+    // Normalizar emerg_tel
+    var emergDigits = normalizarWhats(data.emerg_tel || '');
+    if (emergDigits) data.emerg_tel = '+' + emergDigits;
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        prog.style.display = 'none';
+        if (resp && resp.ok) {
+          // Salvar oauthUrl e athId para a tela de Strava
+          oauthUrlGlobal = resp.oauthUrl || '';
+          document.getElementById('athId').value = resp.athId || data.athId || '';
+          document.getElementById('athIdExibir').textContent = resp.athId || '';
+
+          // Ir para tela de sucesso + Strava
+          irPara(5);
+          document.getElementById('telaStrava').style.display = 'block';
+          // Ocultar botao Strava - link enviado por email
+          var sc = document.getElementById('stravaConectarCard');
+          if (sc) {
+            sc.style.display = 'none';
+            var msg = document.createElement('div');
+            msg.style.cssText = 'margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;text-align:center';
+            msg.innerHTML = '<p style="font-size:1.2rem;margin-bottom:8px">📧</p><p style="color:#e8e8e8;font-weight:600;margin-bottom:6px">Verifique seu e-mail!</p><p style="color:#aaa;font-size:.85rem;line-height:1.5">Enviamos o link para conectar seu Strava. Clique nele quando quiser ativar a importacao dos treinos.</p>';
+            sc.parentNode.insertBefore(msg, sc.nextSibling);
+          }
+
+          // Se marcou Strava, iniciar countdown automático
+          if (document.getElementById('chkStrava') && document.getElementById('chkStrava').checked && oauthUrlGlobal) {
+            iniciarCountdownStrava(5);
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = '⚡ FINALIZAR CADASTRO';
+          showMsg('❌ ' + (resp && resp.erro ? resp.erro : 'Erro ao salvar. Tente novamente.'), false);
+        }
+      })
+      .withFailureHandler(function(err) {
+        prog.style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '⚡ FINALIZAR CADASTRO';
+        showMsg('❌ Erro: ' + (err.message || 'Tente novamente em instantes.'), false);
+      })
+      .salvarCadastroAjax(data);
+  }
+
+  // ── STRAVA — CONECTAR ────────────────────────────────────
+  function conectarStrava() {
+    if (oauthUrlGlobal) {
+      clearInterval(timerStrava);
+      window.open(oauthUrlGlobal, '_blank');
+      document.getElementById('stravaConectarCard').style.display = 'none';
+      document.getElementById('stravaJaConectando').style.display = 'block';
+      return;
+    }
+    // Fallback: buscar URL via google.script.run
+    var athId = document.getElementById('athId').value;
+    if (!athId) { return; }
+    google.script.run
+      .withSuccessHandler(function(url) {
+        if (url) {
+          oauthUrlGlobal = url;
+          window.open(url, '_blank');
+          document.getElementById('stravaConectarCard').style.display = 'none';
+          document.getElementById('stravaJaConectando').style.display = 'block';
+        }
+      })
+      .gerarUrlOAuth(athId);
+  }
+
+  function pularStrava() {
+    clearInterval(timerStrava);
+    document.getElementById('stravaConectarCard').style.display = 'none';
+    document.getElementById('stravaJaConectando').innerHTML =
+      '✅ Cadastro concluído! Verifique seu e-mail para o link de conexão Strava quando quiser.<br><br>' +
+      '<small style="color:#555">Seu código de atleta: <strong>' + document.getElementById('athIdExibir').textContent + '</strong></small>';
+    document.getElementById('stravaJaConectando').style.display = 'block';
+  }
+
+  function iniciarCountdownStrava(seg) {
+    var timerEl = document.getElementById('stravaTimer');
+    timerEl.textContent = '⚡ Você marcou "Conectar Strava" — redirecionando em ' + seg + 's...';
+    timerStrava = setInterval(function() {
+      seg--;
+      if (seg > 0) {
+        timerEl.textContent = '⚡ Redirecionando em ' + seg + 's...';
+      } else {
+        clearInterval(timerStrava);
+        timerEl.textContent = '';
+        conectarStrava();
+      }
+    }, 1000);
+  }
+
+  // ── MENSAGEM ─────────────────────────────────────────────
+  function showMsg(html, ok) {
+    var el = document.getElementById('msg');
+    el.innerHTML  = html;
+    el.className  = ok ? 'ok' : 'err';
+    el.style.display = 'block';
+    setTimeout(function() {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+</script>
+</body>
+</html>

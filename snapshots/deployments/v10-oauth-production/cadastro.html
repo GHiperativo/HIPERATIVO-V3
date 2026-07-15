@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <title>Cadastro — Grupo Hiperativo</title>
+  <style>
+    :root {
+      --azul:   #1a3a8a;
+      --azul2:  #0d2560;
+      --verde:  #00c853;
+      --verde2: #009624;
+      --cinza:  #f4f6f9;
+      --borda:  #dde3ef;
+      --texto:  #1a2340;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--cinza);
+      color: var(--texto);
+      min-height: 100vh;
+    }
+
+    /* ─── HEADER ─────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul2) 100%);
+      padding: 28px 20px 24px;
+      text-align: center;
+      box-shadow: 0 4px 18px rgba(0,0,0,.25);
+    }
+    .logo-svg { width: 72px; height: 72px; display: block; margin: 0 auto 12px; }
+    .header h1 {
+      color: #fff;
+      font-size: 1.8rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .header h1 span { color: var(--verde); }
+    .tagline {
+      color: rgba(255,255,255,.7);
+      font-size: .78rem;
+      letter-spacing: 3px;
+      margin-top: 4px;
+    }
+    .header-sub {
+      color: rgba(255,255,255,.85);
+      font-size: .9rem;
+      margin-top: 10px;
+    }
+
+    /* ─── CARD / FORM ────────────────────────── */
+    .container { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: linear-gradient(90deg, var(--azul) 0%, #2556b0 100%);
+      color: #fff;
+      padding: 14px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header .icon { font-size: 1.2rem; }
+    .card-body { padding: 22px 20px; }
+
+    /* ─── FORM ELEMENTS ──────────────────────── */
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 200px; margin-bottom: 16px; }
+    .form-group.full { flex: 100%; }
+    label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--azul);
+      margin-bottom: 5px;
+    }
+    label .req { color: #e53935; }
+    input[type=text], input[type=email], input[type=date], input[type=number],
+    input[type=tel], select, textarea {
+      width: 100%;
+      padding: 10px 13px;
+      border: 1.5px solid var(--borda);
+      border-radius: 8px;
+      font-size: .95rem;
+      background: #fafbff;
+      color: var(--texto);
+      transition: border .2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--azul);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    select { cursor: pointer; }
+
+    /* ─── PROGRAMAS ──────────────────────────── */
+    .programas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .programa-card input[type=radio] { display: none; }
+    .programa-card label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 14px 10px;
+      border: 2px solid var(--borda);
+      border-radius: 10px;
+      cursor: pointer;
+      background: #fafbff;
+      transition: all .2s;
+      color: var(--texto);
+    }
+    .programa-card input[type=radio]:checked + label {
+      border-color: var(--verde);
+      background: #e8faf0;
+      color: var(--azul2);
+    }
+    .programa-card label .emoji { font-size: 2rem; margin-bottom: 6px; }
+    .programa-card label .nome { font-weight: 700; font-size: .85rem; }
+    .programa-card label .desc { font-size: .72rem; color: #666; margin-top: 3px; }
+
+    /* ─── BOTÃO STRAVA ───────────────────────── */
+    .strava-section {
+      background: #f9f9f9;
+      border: 2px dashed var(--verde);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .strava-section .icon-strava { font-size: 2.5rem; margin-bottom: 8px; }
+    .strava-section p { color: #444; font-size: .9rem; margin-bottom: 16px; line-height: 1.5; }
+    .btn-strava {
+      background: #fc4c02;
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background .2s;
+      text-decoration: none;
+    }
+    .btn-strava:hover { background: #e04000; }
+    .strava-note {
+      font-size: .76rem;
+      color: #888;
+      margin-top: 10px;
+    }
+    .strava-optional {
+      font-size: .8rem;
+      color: var(--verde2);
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    /* ─── BOTÃO SUBMIT ───────────────────────── */
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul2) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: opacity .2s;
+    }
+    .btn-submit:hover { opacity: .9; }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ─── PROGRESS ───────────────────────────── */
+    .progress-bar {
+      display: none;
+      height: 4px;
+      background: var(--borda);
+      border-radius: 2px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--verde);
+      animation: progress 2s ease infinite;
+    }
+    @keyframes progress {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+
+    /* ─── MENSAGEM ───────────────────────────── */
+    #msg {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      margin-top: 14px;
+      text-align: center;
+    }
+    #msg.ok  { background: #e8faf0; color: #2e7d32; border: 1px solid #a5d6a7; }
+    #msg.err { background: #fdecea; color: #c62828; border: 1px solid #ef9a9a; }
+
+    @media (max-width: 480px) {
+      .header h1 { font-size: 1.4rem; }
+      .form-row { flex-direction: column; }
+      .form-group { min-width: unset; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="44" fill="none" stroke="#1a3a8a" stroke-width="8"
+            stroke-dasharray="220 50" stroke-dashoffset="-15"/>
+    <polygon points="55,8 30,55 48,55 42,92 68,45 50,45" fill="#00c853"/>
+  </svg>
+  <h1>HIPER<span>ATIVO</span></h1>
+  <div class="tagline">CABEÇA &bull; CORAÇÃO &bull; CORPO</div>
+  <div class="header-sub">Preencha o formulário para fazer parte do grupo</div>
+</div>
+
+<div class="container">
+<form id="formCad" onsubmit="enviarForm(event)">
+
+  <!-- Campo oculto para ID do atleta (preenchido via URL) -->
+  <input type="hidden" name="athId" id="athId" value="<?= athId ?>">
+
+  <!-- ── 1. DADOS PESSOAIS ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">👤</span> Dados Pessoais</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" name="nome" placeholder="Seu nome completo" required maxlength="100">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>E-mail <span class="req">*</span></label>
+          <input type="email" name="email" placeholder="seu@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>WhatsApp <span class="req">*</span></label>
+          <input type="tel" name="whats" placeholder="(99) 99999-9999" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data de Nascimento <span class="req">*</span></label>
+          <input type="date" name="nasc" required>
+        </div>
+        <div class="form-group">
+          <label>Sexo <span class="req">*</span></label>
+          <select name="sexo" required>
+            <option value="">Selecione...</option>
+            <option value="M">Masculino</option>
+            <option value="F">Feminino</option>
+            <option value="O">Outro / Prefiro não informar</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Peso (kg)</label>
+          <input type="number" name="peso" placeholder="Ex: 72" min="30" max="200" step="0.1">
+        </div>
+        <div class="form-group">
+          <label>Altura (cm)</label>
+          <input type="number" name="altura" placeholder="Ex: 175" min="100" max="250">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cidade <span class="req">*</span></label>
+          <input type="text" name="cidade" placeholder="Sua cidade" required>
+        </div>
+        <div class="form-group">
+          <label>Estado <span class="req">*</span></label>
+          <select name="estado" required>
+            <option value="">UF...</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+            <option selected>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. PROGRAMA HIPERATIVO ────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">⚡</span> Programa HIPERATIVO</div>
+    <div class="card-body">
+      <label style="margin-bottom:14px;">Qual programa você deseja participar? <span class="req">*</span></label>
+      <div class="programas-grid">
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p1" value="Alta Voltagem" required>
+          <label for="p1">
+            <span class="emoji">⚡</span>
+            <span class="nome">Alta Voltagem</span>
+            <span class="desc">Treinos de alta intensidade para resultados máximos</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p2" value="Corrida CCC">
+          <label for="p2">
+            <span class="emoji">🏅</span>
+            <span class="nome">Corrida CCC</span>
+            <span class="desc">Cabeça, Coração e Corpo em cada passada</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p3" value="Iniciante em Movimento">
+          <label for="p3">
+            <span class="emoji">🌱</span>
+            <span class="nome">Iniciante em Movimento</span>
+            <span class="desc">Primeiros passos para uma vida ativa</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p4" value="5k10k em 6 Semanas">
+          <label for="p4">
+            <span class="emoji">🎯</span>
+            <span class="nome">5k/10k em 6 Semanas</span>
+            <span class="desc">Do zero à primeira prova em 6 semanas</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p5" value="Hiperativo Running Club">
+          <label for="p5">
+            <span class="emoji">🏃</span>
+            <span class="nome">Running Club</span>
+            <span class="desc">Treinos em grupo, motivação coletiva</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p6" value="Vida Ativa Melhor Idade">
+          <label for="p6">
+            <span class="emoji">🌟</span>
+            <span class="nome">Melhor Idade</span>
+            <span class="desc">Vida ativa e saudável em qualquer fase</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. PERFIL ESPORTIVO ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">🏋️</span> Perfil Esportivo</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Modalidade Principal <span class="req">*</span></label>
+          <select name="mod" required>
+            <option value="">Selecione...</option>
+            <option>Corrida de rua</option>
+            <option>Ciclismo</option>
+            <option>Natação</option>
+            <option>Triathlon</option>
+            <option>Caminhada</option>
+            <option>Musculação</option>
+            <option>Funcional</option>
+            <option>Trail Running</option>
+            <option>Outra</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nível <span class="req">*</span></label>
+          <select name="nivel" required>
+            <option value="">Selecione...</option>
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+            <option>Elite</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Objetivo Principal <span class="req">*</span></label>
+          <select name="obj" required>
+            <option value="">Selecione...</option>
+            <option>Emagrecer / Reduzir gordura</option>
+            <option>Ganhar massa muscular</option>
+            <option>Melhorar desempenho</option>
+            <option>Completar primeira prova</option>
+            <option>Saúde e bem-estar</option>
+            <option>Bater recorde pessoal (PR)</option>
+            <option>Reabilitação / Retorno ao esporte</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frequência Semanal <span class="req">*</span></label>
+          <select name="freq" required>
+            <option value="">Selecione...</option>
+            <option>1-2x por semana</option>
+            <option>3-4x por semana</option>
+            <option>5-6x por semana</option>
+            <option>Todos os dias</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Horário Preferido</label>
+          <select name="horario">
+            <option value="">Selecione...</option>
+            <option>Manhã (5h-9h)</option>
+            <option>Manhã (9h-12h)</option>
+            <option>Tarde (12h-17h)</option>
+            <option>Noite (17h-21h)</option>
+            <option>Noite (21h+)</option>
+            <option>Variável</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Já participou de provas?</label>
+          <select name="prova">
+            <option value="">Selecione...</option>
+            <option>Nunca participei</option>
+            <option>Sim, 5k</option>
+            <option>Sim, 10k</option>
+            <option>Sim, meia maratona</option>
+            <option>Sim, maratona</option>
+            <option>Sim, triathlon</option>
+            <option>Sim, outras distâncias</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. SAÚDE ──────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">❤️</span> Saúde &amp; Histórico</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Condições de Saúde</label>
+          <input type="text" name="saude" placeholder="Ex: Diabetes, hipertensão, asma... (ou 'Nenhuma')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Lesões ou Limitações Físicas</label>
+          <input type="text" name="lesao" placeholder="Ex: Joelho, lombar... (ou 'Nenhuma')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Usa algum medicamento contínuo?</label>
+          <input type="text" name="med" placeholder="Nome do medicamento (ou 'Não')">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. COMO NOS CONHECEU ──────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">📣</span> Como nos conheceu?</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Indicação / Canal</label>
+          <select name="origem">
+            <option value="">Selecione...</option>
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>Indicação de amigo</option>
+            <option>Google</option>
+            <option>WhatsApp</option>
+            <option>Evento esportivo</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Observações</label>
+          <input type="text" name="obs" placeholder="Alguma informação extra?">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 6. CONECTAR STRAVA ────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><span class="icon">🔗</span> Conectar ao Strava (opcional)</div>
+    <div class="card-body">
+      <div class="strava-section">
+        <div class="icon-strava">🚴</div>
+        <p>
+          Conecte sua conta Strava para que seus treinos sejam importados automaticamente
+          e seu treinador acompanhe seu progresso em tempo real.
+        </p>
+        <button type="button" class="btn-strava" id="btnStrava" onclick="conectarStrava()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+          </svg>
+          Conectar com Strava
+        </button>
+        <div class="strava-optional">✓ Etapa opcional — você pode conectar depois</div>
+        <div class="strava-note">Solicitamos apenas acesso de leitura às suas atividades</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOTÃO ENVIAR ──────────────────────────────────────── -->
+  <button type="submit" class="btn-submit" id="btnEnviar">
+    ✅ FINALIZAR CADASTRO
+  </button>
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-bar-fill"></div>
+  </div>
+  <div id="msg"></div>
+
+</form>
+</div><!-- /container -->
+
+<script>
+  // ── Pegar athId da URL caso não veio pelo template ──────────
+  (function(){
+    const athEl = document.getElementById('athId');
+    if (!athEl.value) {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('athId') || params.get('athid') || '';
+      if (id) athEl.value = id.trim().toUpperCase();
+    }
+  })();
+
+  // ── Enviar formulário via google.script.run ─────────────────
+  function enviarForm(e) {
+    e.preventDefault();
+    const btn  = document.getElementById('btnEnviar');
+    const prog = document.getElementById('progressBar');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+    prog.style.display = 'block';
+
+    // Coletar dados do formulário
+    const form = e.target;
+    const fd   = new FormData(form);
+    const data = {};
+    fd.forEach((v, k) => { data[k] = v; });
+
+    // Agregar checkboxes múltiplos
+    data.modAgg    = [...form.querySelectorAll('input[name="mod"]:checked')].map(el => el.value).join(', ');
+    data.objAgg    = [...form.querySelectorAll('input[name="obj"]:checked')].map(el => el.value).join(', ');
+    data.saudeAgg  = [...form.querySelectorAll('input[name="saude"]:checked')].map(el => el.value).join(', ');
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        prog.style.display = 'none';
+        if (resp && resp.ok) {
+          // ✅ Sucesso — salvar athId no campo hidden e habilitar Strava
+          document.getElementById('athId').value = resp.athId || data.athId || '';
+          btn.textContent = '✅ Enviado!';
+          btn.style.background = '#00c853';
+          // Destacar seção Strava como pronta
+          const btnStrava = document.getElementById('btnStrava');
+          if (btnStrava) {
+            btnStrava.style.opacity = '1';
+            btnStrava.style.pointerEvents = 'auto';
+            btnStrava.style.boxShadow = '0 0 0 3px #00c85360';
+          }
+          const stravaOpt = document.querySelector('.strava-optional');
+          if (stravaOpt) {
+            stravaOpt.textContent = '✅ Cadastro salvo! Clique acima para conectar o Strava agora.';
+            stravaOpt.style.color = '#00c853';
+          }
+          if (resp.oauthUrl) {
+            showOAuthLink(resp.oauthUrl, '✅ Cadastro salvo! Agora autorize o acesso no Strava.');
+          } else {
+            showMsg('✅ Cadastro salvo! ' + (resp.oauthErro ? 'Não foi possível abrir o Strava automaticamente: ' + resp.oauthErro : 'Use o botão Conectar Strava para autorizar seus dados.'), true);
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = '✅ FINALIZAR CADASTRO';
+          showMsg('❌ ' + (resp && resp.erro ? resp.erro : 'Erro ao salvar. Tente novamente.'), false);
+        }
+      })
+      .withFailureHandler(function(err) {
+        prog.style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '✅ FINALIZAR CADASTRO';
+        showMsg('❌ Erro: ' + (err.message || 'Tente novamente.'), false);
+      })
+      .salvarCadastroAjax(data);
+  }
+
+  // ── Conectar Strava ─────────────────────────────────────────
+  function conectarStrava() {
+    const athEl = document.getElementById('athId');
+    const athId = athEl ? athEl.value.trim() : '';
+    if (!athId) {
+      showMsg('⚠️ Preencha e envie o formulário primeiro antes de conectar o Strava.', false);
+      document.getElementById('btnEnviar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    showMsg('🔗 Abrindo autorização Strava para ' + athId + '...', true);
+
+    google.script.run
+      .withSuccessHandler(function(url) {
+        if (url) {
+          showOAuthLink(url, '✅ Link pronto. Clique abaixo para abrir o Strava e autorizar.');
+        } else {
+          showMsg('Erro ao gerar link Strava. Tente novamente.', false);
+        }
+      })
+      .withFailureHandler(function(err) {
+        showMsg('Erro: ' + err.message, false);
+      })
+      .gerarUrlOAuth(athId);
+  }
+
+  function showOAuthLink(url, texto) {
+    showMsg(texto, true);
+    const msg = document.getElementById('msg');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'ABRIR STRAVA EM NOVA ABA';
+    link.style.cssText = 'display:block;margin-top:14px;background:#fc4c02;color:#fff;padding:14px 18px;border-radius:8px;text-decoration:none;font-weight:700;text-align:center';
+    msg.appendChild(link);
+    const fallback = document.createElement('div');
+    fallback.textContent = 'Se a nova aba não abrir, copie e cole este link: ' + url;
+    fallback.style.cssText = 'margin-top:10px;font-size:12px;color:#1565c0;word-break:break-all';
+    msg.appendChild(fallback);
+  }
+
+  // ── Exibir mensagem ─────────────────────────────────────────
+  function showMsg(txt, ok) {
+    const el = document.getElementById('msg');
+    el.textContent = txt;
+    el.style.color = ok ? '#00c853' : '#d32f2f';
+    el.style.background = ok ? '#e8f5e9' : '#fdecea';
+    el.style.padding = '12px 16px';
+    el.style.borderRadius = '8px';
+    el.style.margin = '12px 0';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
