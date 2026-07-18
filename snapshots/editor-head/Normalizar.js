@@ -55,38 +55,69 @@ const ATIVIDADES_NORMALIZADAS_HEADERS = [
 // — DICIONÁRIO DE TIPOS ——————————————————————————————
 
 const SPORT_TYPE_DICT = {
+  AlpineSki: 'Esqui alpino',
+  BackcountrySki: 'Esqui fora de pista',
+  Badminton: 'Badminton',
+  Basketball: 'Basquete',
+  Canoeing: 'Canoagem',
+  Cricket: 'Críquete',
+  Crossfit: 'Crossfit',
+  Dance: 'Dança',
+  EBikeRide: 'Ciclismo elétrico',
+  Elliptical: 'Elíptico',
+  EMountainBikeRide: 'Mountain bike elétrico',
+  Golf: 'Golfe',
+  GravelRide: 'Gravel',
+  Handcycle: 'Handcycle',
+  HighIntensityIntervalTraining: 'HIIT',
+  Hike: 'Trilha',
+  IceSkate: 'Patinação no gelo',
+  InlineSkate: 'Patins',
+  Kayaking: 'Caiaque',
+  Kitesurf: 'Kitesurf',
+  MountainBikeRide: 'Mountain bike',
+  NordicSki: 'Esqui nórdico',
+  Padel: 'Padel',
+  PhysicalTherapy: 'Fisioterapia',
+  Pickleball: 'Pickleball',
+  Pilates: 'Pilates',
+  Racquetball: 'Raquetebol',
   Run: 'Corrida',
   TrailRun: 'Corrida em trilha',
   Walk: 'Caminhada',
   Ride: 'Ciclismo',
   VirtualRide: 'Ciclismo virtual',
-  MountainBikeRide: 'Mountain bike',
-  GravelRide: 'Gravel',
-  Swim: 'Natação',
-  Workout: 'Treino',
-  WeightTraining: 'Musculação',
-  HighIntensityIntervalTraining: 'HIIT',
-  Yoga: 'Yoga',
-  Pilates: 'Pilates',
-  Hike: 'Trilha',
-  Elliptical: 'Elíptico',
-  StairStepper: 'Escada',
+  RockClimbing: 'Escalada',
+  RollerSki: 'Esqui sobre rodas',
   Rowing: 'Remo',
-  VirtualRow: 'Remo virtual',
+  Sail: 'Vela',
+  Skateboard: 'Skate',
+  Snowboard: 'Snowboard',
+  Snowshoe: 'Caminhada com raquetes de neve',
   Soccer: 'Futebol',
+  Squash: 'Squash',
+  StairStepper: 'Escada',
+  StandUpPaddling: 'Stand up paddle',
+  Surfing: 'Surfe',
+  Swim: 'Natação',
+  TableTennis: 'Tênis de mesa',
   Tennis: 'Tênis',
-  Padel: 'Padel',
-  Pickleball: 'Pickleball',
-  Badminton: 'Badminton',
-  Dance: 'Dança',
-  PhysicalTherapy: 'Fisioterapia',
-  Crossfit: 'Crossfit',
-  InlineSkate: 'Patins',
-  Wheelchair: 'Cadeira de rodas'
+  Velomobile: 'Velomóvel',
+  VirtualRow: 'Remo virtual',
+  VirtualRun: 'Corrida virtual',
+  Volleyball: 'Vôlei',
+  WeightTraining: 'Musculação',
+  Wheelchair: 'Cadeira de rodas',
+  Windsurf: 'Windsurf',
+  Workout: 'Treino',
+  Yoga: 'Yoga',
 };
 
-const TIPOS_CORRIDA = ['Run', 'TrailRun', 'Walk', 'Hike'];
-const TIPOS_CICLO   = ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'];
+const TIPOS_CORRIDA = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike'];
+const TIPOS_CICLO   = [
+  'Ride', 'VirtualRide', 'MountainBikeRide', 'EMountainBikeRide',
+  'GravelRide', 'EBikeRide', 'Handcycle', 'Velomobile'
+];
 
 // — CONVERSORES BÁSICOS ——————————————————————————————
 
@@ -128,7 +159,7 @@ function toVelKmh(avgSpeedMs) {
 
 function traduzirTipo(sportType, typeFallback) {
   var chave = sportType || typeFallback || '';
-  return SPORT_TYPE_DICT[chave] || 'Outro';
+  return SPORT_TYPE_DICT[chave] || chave || 'Outro';
 }
 
 // — NORMALIZAÇÃO PRINCIPAL ———————————————————————————
@@ -414,149 +445,18 @@ function testarNormalizacaoStrava() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// IMPORTAÇÃO SEGURA — v1.0 — 22/06/2026
-// Bypass das funções antigas quebradas do menu
-// NÃO toca: Supabase, Painel, Métricas, Ranking
-// SÓ escreve em: 🏃 ATIVIDADES
+// IMPORTAÇÃO SEGURA — compatibilidade do item de menu legado
+// Toda chamada passa pela fila central para compartilhar refresh, backup,
+// deduplicação, paginação e rate limit.
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Importa as últimas 20 atividades Strava por atleta conectado.
- * Seguro: sem Supabase, sem Painel, sem Métricas, sem Ranking.
- * Chame pelo menu ou diretamente pelo editor.
+ * Mantém o nome público usado pelo menu antigo, mas não executa mais o segundo
+ * importador que gravava 34 colunas e rotacionava tokens fora do fluxo central.
  */
 function importarUltimas20AtividadesPorAtleta() {
-  const ss     = SpreadsheetApp.getActiveSpreadsheet();
-  const wsAtiv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
-  const wsTok  = ss.getSheetByName(H.SHEETS.TOKENS);
-
-  if (!wsAtiv) { Logger.log('[ERRO] Aba ATIVIDADES não encontrada'); return; }
-  if (!wsTok)  { Logger.log('[ERRO] Aba TOKENS não encontrada'); return; }
-
-  const props        = PropertiesService.getScriptProperties();
-  const clientId     = props.getProperty('STRAVA_CLIENT_ID');
-  const clientSecret = props.getProperty('STRAVA_CLIENT_SECRET');
-
-  if (!clientId || !clientSecret) {
-    Logger.log('[ERRO] Credenciais Strava não configuradas. Use Menu > Configurações > Configurar credenciais Strava.');
-    return;
-  }
-
-  // Deduplicação: coletar Strava IDs já gravados (coluna 8 = índice 7)
-  const ativVals = wsAtiv.getDataRange().getValues();
-  const existingIds = new Set();
-  for (let i = 2; i < ativVals.length; i++) {
-    const sid = String(ativVals[i][7] || '').trim();
-    if (sid && sid !== 'undefined') existingIds.add(sid);
-  }
-
-  const tokVals = wsTok.getDataRange().getValues();
-  const agora   = Math.floor(Date.now() / 1000);
-  const log     = [];
-  let totalImportadas = 0;
-  let totalErros      = 0;
-  const novasLinhas   = [];
-
-  for (let i = 1; i < tokVals.length; i++) {
-    const row         = tokVals[i];
-    const athId       = String(row[H.TOK.ATH_ID   - 1] || '').trim();
-    const nomeAtleta  = String(row[H.TOK.NOME      - 1] || athId).trim();
-    let   accessToken = String(row[H.TOK.ACCESS    - 1] || '').trim();
-    const refreshTok  = String(row[H.TOK.REFRESH   - 1] || '').trim();
-    const expiresRaw  = row[H.TOK.EXPIRES - 1];
-
-    if (!athId || !accessToken) {
-      log.push('[SKIP] ' + (athId || 'linha ' + (i + 1)) + ' — sem token');
-      continue;
-    }
-
-    // Calcular expiração
-    let expiresTs = 0;
-    if (expiresRaw instanceof Date) expiresTs = Math.floor(expiresRaw.getTime() / 1000);
-    else if (typeof expiresRaw === 'number' && expiresRaw > 1000000000) expiresTs = expiresRaw;
-
-    // Renovar se expirado ou < 5 min para expirar
-    if (expiresTs > 0 && agora > expiresTs - 300) {
-      if (!refreshTok) {
-        log.push('[SKIP] ' + athId + ' — token expirado sem refresh_token');
-        continue;
-      }
-      try {
-        const rResp = UrlFetchApp.fetch(STRAVA_TOKEN_URL, {
-          method: 'post',
-          payload: {
-            client_id:     clientId,
-            client_secret: clientSecret,
-            grant_type:    'refresh_token',
-            refresh_token: refreshTok
-          },
-          muteHttpExceptions: true
-        });
-        if (rResp.getResponseCode() !== 200) throw new Error('HTTP ' + rResp.getResponseCode());
-        const rd = JSON.parse(rResp.getContentText());
-        accessToken = rd.access_token;
-        wsTok.getRange(i + 1, H.TOK.ACCESS,  1, 1).setValue(rd.access_token);
-        wsTok.getRange(i + 1, H.TOK.REFRESH, 1, 1).setValue(rd.refresh_token || refreshTok);
-        wsTok.getRange(i + 1, H.TOK.EXPIRES, 1, 1).setValue(new Date(rd.expires_at * 1000));
-        log.push('[REFRESH OK] ' + athId);
-      } catch (e) {
-        log.push('[ERRO REFRESH] ' + athId + ' — ' + e.message);
-        totalErros++;
-        continue;
-      }
-    }
-
-    // Chamar Strava API
-    try {
-      const apiResp = UrlFetchApp.fetch(
-        STRAVA_API_BASE + '/athlete/activities?per_page=20&page=1',
-        { headers: { Authorization: 'Bearer ' + accessToken }, muteHttpExceptions: true }
-      );
-      if (apiResp.getResponseCode() !== 200) {
-        log.push('[ERRO API] ' + athId + ' — HTTP ' + apiResp.getResponseCode());
-        totalErros++;
-        continue;
-      }
-      const atividades = JSON.parse(apiResp.getContentText());
-      if (!Array.isArray(atividades) || atividades.length === 0) {
-        log.push('[SKIP] ' + athId + ' — sem atividades');
-        continue;
-      }
-      let novas = 0;
-      for (const raw of atividades) {
-        const sid = String(raw.id || '');
-        if (!sid || existingIds.has(sid)) continue;
-        const norm  = normalizarAtividadeStrava(raw, { ath_id: athId, ATH_ID: athId, nome: nomeAtleta, Atleta: nomeAtleta });
-        const linha = normalizadoParaLinha(norm);
-        novasLinhas.push(linha);
-        existingIds.add(sid);
-        novas++;
-      }
-      log.push('[OK] ' + athId + ' (' + nomeAtleta + ') — ' + novas + ' novas / ' + atividades.length + ' recebidas');
-      totalImportadas += novas;
-    } catch (e) {
-      log.push('[ERRO] ' + athId + ' — ' + e.message);
-      totalErros++;
-    }
-
-    Utilities.sleep(300);
-  }
-
-  // Gravar em batch
-  if (novasLinhas.length > 0) {
-    const startRow = Math.max(wsAtiv.getLastRow() + 1, 3);
-    wsAtiv.getRange(startRow, 1, novasLinhas.length, 34).setValues(novasLinhas);
-  }
-
-  const resumo = [
-    'IMPORTAÇÃO SEGURA CONCLUÍDA',
-    'Novas: ' + totalImportadas + '  |  Erros: ' + totalErros,
-    '',
-    log.join('\n')
-  ].join('\n');
-
-  Logger.log(resumo);
-}  
+  return processarFilaStrava();
+}
 
 // ── DIAGNÓSTICO TEMPORÁRIO ──────────────────────────────────────
 function _diagImport() {

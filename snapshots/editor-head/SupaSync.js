@@ -41,14 +41,22 @@ function _supaConfigurado_() { return !!_supaKey_(); }
 // ─── UPSERT TOKEN NO SUPABASE ────────────────────────────────────────────────
 
 function supaUpsertToken(athId, nome, accessToken, refreshToken, expiresAt) {
-  if (!_supaConfigurado_()) return;
+  if (!_supaConfigurado_()) return false;
+  if (!athId || !accessToken || String(accessToken).length < 10 ||
+      !refreshToken || String(refreshToken).length < 5 || !Number(expiresAt)) {
+    _log(athId || 'SISTEMA', 'AVISO', 'supaUpsertToken',
+      'Backup ignorado: conjunto de token incompleto; registro anterior preservado', '');
+    return false;
+  }
   try {
+    const expNumero = Number(expiresAt) || 0;
+    const expSegundos = expNumero > 1e12 ? Math.floor(expNumero / 1000) : Math.floor(expNumero);
     const payload = JSON.stringify({
       ath_id:        athId,
       nome:          nome || '',
       access_token:  accessToken || '',
       refresh_token: refreshToken || '',
-      expires_at:    Number(expiresAt) || 0,
+      expires_at:    expSegundos,
       ult_atu:       new Date().toISOString(),
       status:        'Renovado'
     });
@@ -60,9 +68,12 @@ function supaUpsertToken(athId, nome, accessToken, refreshToken, expiresAt) {
     });
     if (resp.getResponseCode() >= 300) {
       _log(athId, 'AVISO', 'supaUpsertToken', 'Sync Supabase retornou ' + resp.getResponseCode(), '');
+      return false;
     }
+    return true;
   } catch (e) {
     _log(athId, 'AVISO', 'supaUpsertToken', 'Sync Supabase falhou (nao critico): ' + e.message, '');
+    return false;
   }
 }
 
@@ -75,7 +86,7 @@ function supaGetRefresh(athId) {
       + '?ath_id=eq.' + encodeURIComponent(athId)
       + '&select=refresh_token,access_token,expires_at&limit=1';
     const resp = UrlFetchApp.fetch(url, { method: 'get', headers: _supaHeaders_(), muteHttpExceptions: true });
-    if (resp.getResponseCode() !== 200) return null;
+    if (resp.getResponseCode() !== 200) return { _indisponivel: true };
     const rows = JSON.parse(resp.getContentText());
     if (!rows || rows.length === 0) return null;
     return {
@@ -83,7 +94,7 @@ function supaGetRefresh(athId) {
       access_token:  rows[0].access_token  || '',
       expires_at:    Number(rows[0].expires_at) || 0
     };
-  } catch (e) { return null; }
+  } catch (e) { return { _indisponivel: true }; }
 }
 
 // ─── DIAGNÓSTICO (rodar manualmente para verificar) ──────────────────────────
@@ -564,9 +575,9 @@ function verificarStatusRealStrava() {
     try {
       var accessToken = _getValidAccessToken(athId);
       if (!accessToken) {
-        sheet.getRange(i + 1, H.CAD.STRAVA_OK, 1, 1).setValue('Reconectar');
-        resultados.push('AVISO: ' + nome + ' (' + athId + ') — token invalido → Reconectar');
-        _log(athId, 'AVISO', 'verificarStatusRealStrava', 'Token invalido — atleta precisa reconectar', '');
+        resultados.push('AVISO: ' + nome + ' (' + athId + ') — token temporariamente indisponível; status preservado');
+        _log(athId, 'AVISO', 'verificarStatusRealStrava',
+          'Token indisponível nas fontes atuais; status preservado, sem iniciar OAuth', '');
         falhos++;
         continue;
       }
@@ -574,13 +585,22 @@ function verificarStatusRealStrava() {
         method: 'get', headers: { 'Authorization': 'Bearer ' + accessToken }, muteHttpExceptions: true
       });
       var status = resp.getResponseCode();
+      if (status === 401 && typeof _forcarRefreshAccessToken_ === 'function') {
+        var recuperado = _forcarRefreshAccessToken_(athId, accessToken);
+        if (recuperado) {
+          resp = UrlFetchApp.fetch('https://www.strava.com/api/v3/athlete', {
+            method: 'get', headers: { 'Authorization': 'Bearer ' + recuperado }, muteHttpExceptions: true
+          });
+          status = resp.getResponseCode();
+        }
+      }
       if (status === 200) {
         resultados.push('OK: ' + nome + ' (' + athId + ')');
         _log(athId, 'INFO', 'verificarStatusRealStrava', 'Token verificado OK', '');
       } else if (status === 401) {
-        sheet.getRange(i + 1, H.CAD.STRAVA_OK, 1, 1).setValue('Reconectar');
-        resultados.push('AVISO: ' + nome + ' (' + athId + ') — 401 → Reconectar');
-        _log(athId, 'AVISO', 'verificarStatusRealStrava', 'API retornou 401', '');
+        resultados.push('AVISO: ' + nome + ' (' + athId + ') — 401 persistente; status preservado');
+        _log(athId, 'AVISO', 'verificarStatusRealStrava',
+          'API retornou 401 após tentativa de recuperação; status preservado', '');
         falhos++;
       } else if (status === 429) {
         resultados.push('LIMITE: rate limit (429) — tentar mais tarde');
@@ -698,10 +718,28 @@ function sincronizarTokensParaSupabase() {
       skip++;
       continue;
     }
+    var expSegundos = expiresAt > 1e12 ? Math.floor(expiresAt / 1000) : Math.floor(expiresAt);
+    var existenteSupa = supaGetRefresh(athId);
+    if (existenteSupa && existenteSupa._indisponivel) {
+      Logger.log('[sincronizarTokens] L' + (i+1) + ' (' + athId +
+        '): Supabase indisponivel; nenhuma sobrescrita realizada.');
+      skip++;
+      continue;
+    }
+    var expSupa = existenteSupa ? Number(existenteSupa.expires_at || 0) : 0;
+    if (expSupa >= expSegundos && expSupa > 0) {
+      Logger.log('[sincronizarTokens] L' + (i+1) + ' (' + athId +
+        '): Supabase ja possui copia igual ou mais nova. Skip seguro.');
+      skip++;
+      continue;
+    }
     try {
-      supaUpsertToken(athId, nome, accessToken, refreshToken, expiresAt);
-      Logger.log('[sincronizarTokens] OK: ' + athId + ' (' + nome + ')');
-      ok++;
+      if (supaUpsertToken(athId, nome, accessToken, refreshToken, expSegundos)) {
+        Logger.log('[sincronizarTokens] OK: ' + athId + ' (' + nome + ')');
+        ok++;
+      } else {
+        erros++;
+      }
     } catch(e) {
       Logger.log('[sincronizarTokens] ERRO ' + athId + ': ' + e.message);
       erros++;
