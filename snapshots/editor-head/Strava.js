@@ -1370,15 +1370,16 @@ const PATCH_COL_CAD_ = {
 
 // Colunas da aba TOKENS (índice 0-based)
 const PATCH_COL_TOK_ = {
-  ATH_ID: 0,   // A
-  NOME: 1,   // B
-  ACCESS_TOKEN: 2,   // C
-  REFRESH_TOKEN: 3,   // D
-  EXPIRES_AT: 4,   // E — timestamp em ms (não Unix seconds)
-  SCOPE: 5,   // F
-  STRAVA_ID: 6,   // G
-  STATUS: 7,   // H — Ativo / Reconectar
+  EXEC_ID: 0,   // A — TOK_...
+  ATH_ID: 1,   // B
+  NOME: 2,   // C
+  ACCESS_TOKEN: 3,   // D
+  REFRESH_TOKEN: 4,   // E
+  EXPIRES_AT: 5,   // F — Unix seconds ou milliseconds
+  SCOPE: 6,   // G
+  STRAVA_ID: 7,   // H
   ULT_ATU: 8,   // I — data/hora última atualização
+  STATUS: 9,   // J — Ativo / Renovado / Reconectar
 };
 
 // Termos que JAMAIS podem ser um ATH_ID real
@@ -1472,12 +1473,14 @@ function _getTokenRow_(athId) {
   if (!aba) return null;
 
   const dados = aba.getDataRange().getValues();
+  let encontrado = null;
   for (let i = 1; i < dados.length; i++) {
     const id = String(dados[i][PATCH_COL_TOK_.ATH_ID] || '').trim();
     if (!_isAthIdValido_(id)) continue;
     if (id !== athId) continue;
-    return {
+    encontrado = {
       rowIdx: i + 1, // 1-based para setValues
+      execId: String(dados[i][PATCH_COL_TOK_.EXEC_ID] || '').trim(),
       accessToken: String(dados[i][PATCH_COL_TOK_.ACCESS_TOKEN] || '').trim(),
       refreshToken: String(dados[i][PATCH_COL_TOK_.REFRESH_TOKEN] || '').trim(),
       expiresAt: Number(dados[i][PATCH_COL_TOK_.EXPIRES_AT]) || 0,
@@ -1486,23 +1489,51 @@ function _getTokenRow_(athId) {
       nome: String(dados[i][PATCH_COL_TOK_.NOME] || '').trim(),
       status: String(dados[i][PATCH_COL_TOK_.STATUS] || '').trim(),
     };
+    break;
   }
-  // Fallback: tenta buscar do Supabase quando não encontrado na planilha
-  const _supaRow_ = supaGetRefresh(athId);
-  if (_supaRow_ && _supaRow_.refresh_token) {
-    console.log('[PATCH] _getTokenRow_: fallback Supabase para ' + athId);
-    return {
-      rowIdx: -1,
-      accessToken: _supaRow_.access_token || '',
-      refreshToken: _supaRow_.refresh_token,
-      expiresAt: _supaRow_.expires_at || 0,
-      scope: '',
-      stravaId: '',
-      nome: '',
-      status: 'Ativo'
-    };
+
+  // ScriptProperties e Supabase podem conter um refresh_token mais novo que a
+  // planilha. Isso acontece porque a Strava rotaciona o refresh_token a cada
+  // renovação. Sempre escolhe a cópia com expires_at mais recente e preserva o
+  // rowIdx da planilha para que a próxima persistência reconcilie as fontes.
+  const props = PropertiesService.getScriptProperties();
+  const propRefresh = String(props.getProperty('RT_' + athId) || '').trim();
+  const propExpires = Number(props.getProperty('EX_' + athId) || 0);
+  if (_isRefreshTokenValido_(propRefresh) &&
+      (!encontrado || _expiresAtSeg_(propExpires) >= _expiresAtSeg_(encontrado.expiresAt))) {
+    encontrado = Object.assign({}, encontrado || { rowIdx: -1 }, {
+      accessToken: String(props.getProperty('AT_' + athId) || '').trim(),
+      refreshToken: propRefresh,
+      expiresAt: propExpires,
+      scope: encontrado ? encontrado.scope : '',
+      stravaId: encontrado ? encontrado.stravaId : '',
+      nome: encontrado ? encontrado.nome : '',
+      status: 'Renovado'
+    });
   }
-  return null;
+
+  if (typeof supaGetRefresh === 'function') {
+    const supaRow = supaGetRefresh(athId);
+    if (supaRow && _isRefreshTokenValido_(supaRow.refresh_token) &&
+        (!encontrado || _expiresAtSeg_(supaRow.expires_at) >= _expiresAtSeg_(encontrado.expiresAt))) {
+      encontrado = Object.assign({}, encontrado || { rowIdx: -1 }, {
+        accessToken: String(supaRow.access_token || '').trim(),
+        refreshToken: String(supaRow.refresh_token).trim(),
+        expiresAt: Number(supaRow.expires_at) || 0,
+        scope: encontrado ? encontrado.scope : '',
+        stravaId: encontrado ? encontrado.stravaId : '',
+        nome: encontrado ? encontrado.nome : '',
+        status: 'Renovado'
+      });
+      console.log('[PATCH] _getTokenRow_: usando copia mais recente do Supabase para ' + athId);
+    }
+  }
+  return encontrado;
+}
+
+function _expiresAtSeg_(valor) {
+  const n = Number(valor) || 0;
+  return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
 
@@ -1535,7 +1566,11 @@ function _salvarTokensPlanilha(athId, tokenData) {
   }
 
   const agora = new Date();
+  const existing = _getTokenRow_(athId);
+  const execId = (existing && existing.execId) ||
+    ('TOK_' + Utilities.getUuid().substring(0, 8).toUpperCase());
   const novaLinha = [
+    execId,
     athId,
     tokenData.nome || '',
     tokenData.accessToken,
@@ -1543,11 +1578,10 @@ function _salvarTokensPlanilha(athId, tokenData) {
     tokenData.expiresAt || 0,
     tokenData.scope || '',
     tokenData.stravaId || '',
-    'Ativo',
     agora,
+    'Ativo',
   ];
 
-  const existing = _getTokenRow_(athId);
   if (existing && existing.rowIdx > 0) {
     aba.getRange(existing.rowIdx, 1, 1, novaLinha.length).setValues([novaLinha]);
     console.log('[PATCH] _salvarTokensPlanilha: UPDATE linha ' + existing.rowIdx + ' → ' + athId);
@@ -1593,6 +1627,18 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
 
   const erros = [];
   let salvo = false;
+
+  // Primeira gravação: cópia de recuperação atômica no próprio projeto.
+  // Nunca remove o refresh_token anterior enquanto o novo conjunto não foi
+  // validado. Assim, uma falha posterior na planilha ou no Supabase não perde
+  // a credencial recém-rotacionada pela Strava.
+  if (_isRefreshTokenValido_(tokenData.refreshToken)) {
+    PropertiesService.getScriptProperties().setProperties({
+      ['AT_' + athId]: String(tokenData.accessToken),
+      ['RT_' + athId]: String(tokenData.refreshToken),
+      ['EX_' + athId]: String(tokenData.expiresAt || 0)
+    }, false);
+  }
 
   // ── 1. Planilha ─────────────────────────────────────
   try {
@@ -1697,9 +1743,9 @@ function _trocarCodigoPorToken(athId, code) {
     throw new Error('[_trocarCodigoPorToken] Authorization code ausente para ' + athId);
   }
 
-  const cfg = getCfg();
-  const clientId = cfg.stravaClientId;
-  const clientSecret = cfg.stravaClientSecret;
+  const credenciais = _getStravaAppCredentials_();
+  const clientId = credenciais.clientId;
+  const clientSecret = credenciais.clientSecret;
 
   if (!clientId || !clientSecret) {
     _logEvento_('ERRO', '_trocarCodigoPorToken', athId,
@@ -1825,14 +1871,30 @@ function _getValidAccessToken(athId) {
     return null;
   }
 
-  // Faz refresh
-  console.log('[PATCH] _getValidAccessToken: token expirando, fazendo refresh para ' + athId);
+  // Faz refresh sob lock global. Refresh tokens da Strava são rotativos: duas
+  // execuções simultâneas usando o mesmo valor podem invalidar uma à outra.
+  const lock = LockService.getScriptLock();
   try {
-    const novo = _refreshAccessToken(athId, row.refreshToken);
+    lock.waitLock(30000);
+
+    // Outra execução pode ter renovado enquanto aguardávamos o lock.
+    const atualizado = _getTokenRow_(athId);
+    const atualizadoExpira = atualizado ? _expiresAtSeg_(atualizado.expiresAt) : 0;
+    if (atualizado && atualizado.accessToken && atualizadoExpira > Math.floor(Date.now() / 1000) + 300) {
+      return atualizado.accessToken;
+    }
+
+    const refreshSeguro = atualizado && _isRefreshTokenValido_(atualizado.refreshToken)
+      ? atualizado.refreshToken
+      : row.refreshToken;
+    console.log('[PATCH] _getValidAccessToken: token expirando, fazendo refresh para ' + athId);
+    const novo = _refreshAccessToken(athId, refreshSeguro);
     return novo ? novo.accessToken : null;
   } catch (e) {
     _logEvento_('ERRO', '_getValidAccessToken', athId, 'Refresh falhou', e.message);
     return null;
+  } finally {
+    try { lock.releaseLock(); } catch (_) { }
   }
 }
 
@@ -1858,9 +1920,9 @@ function _refreshAccessToken(athId, refreshTokenAtual) {
     return null;
   }
 
-  const cfg = getCfg();
-  const clientId = cfg.stravaClientId;
-  const clientSecret = cfg.stravaClientSecret;
+  const credenciais = _getStravaAppCredentials_();
+  const clientId = credenciais.clientId;
+  const clientSecret = credenciais.clientSecret;
 
   if (!clientId || !clientSecret) {
     _logEvento_('ERRO', '_refreshAccessToken', athId, 'Credenciais Strava ausentes', '');
@@ -1938,6 +2000,18 @@ function _refreshAccessToken(athId, refreshTokenAtual) {
     ' → expires=' + new Date(tokenData.expiresAt).toISOString());
 
   return tokenData;
+}
+
+/**
+ * Lê as credenciais diretamente de ScriptProperties. Não usa getCfg(), pois o
+ * projeto possui implementações legadas dessa função com formatos diferentes.
+ */
+function _getStravaAppCredentials_() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    clientId: String(props.getProperty('STRAVA_CLIENT_ID') || '').trim(),
+    clientSecret: String(props.getProperty('STRAVA_CLIENT_SECRET') || '').trim()
+  };
 }
 
 
