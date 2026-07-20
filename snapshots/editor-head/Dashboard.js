@@ -321,7 +321,7 @@ function sincronizarAtletasEmTodasAbas() {
     const athId  = String(cadDados[i][H.CAD.ID     - 1] || '').trim();
     const nome   = String(cadDados[i][H.CAD.NOME   - 1] || '').trim();
     const status = String(cadDados[i][H.CAD.STATUS - 1] || '').trim();
-    if (!athId || status === 'Inativo') continue;
+    if (!_isAthIdValido_(athId) || status.toLowerCase() === 'inativo') continue;
 
     // 1. Garantir linha em MÉTRICAS
     if (shMet) {
