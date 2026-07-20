@@ -364,17 +364,19 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
   const sheet = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   if (!sheet) throw new Error('Aba ATIVIDADES não encontrada.');
 
-  const existentes = new Set();
+  const existentes = new Map();
   const dataAtual = sheet.getDataRange().getValues();
-  for (let i = 1; i < dataAtual.length; i++) {
+  for (let i = 2; i < dataAtual.length; i++) {
     const sid = String(dataAtual[i][H.ATIV.STRAVA_ID - 1] || '').trim();
-    if (sid) existentes.add(sid);
+    if (sid && !existentes.has(sid)) existentes.set(sid, i + 1);
   }
 
   let count = 0;
+  let reparadas = 0;
+  const novasLinhas = [];
+  const linhasReparadas = [];
   for (const a of atividades) {
     const sid = String(a.id || '');
-    if (existentes.has(sid)) continue;
 
     // ── Normalização oficial via Normalizar.gs ─────────────────────────────────
     const norm = normalizarAtividadeStrava(a, { ath_id: athId, nome: nomeAtleta });
@@ -384,46 +386,72 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
     // Campos legados: mantidos para compatibilidade com Metricas.gs e Queue.gs
     const velMps = Number(a.average_speed) > 0 ? Number(a.average_speed) : 0;
     const velKmMin = velMps > 0 ? Math.round(velMps * 0.06 * 1000) / 1000 : 0;
-    const paceSegKm = (velMps > 0 && norm.pace_min_km !== null)
-      ? Math.round(1000 / velMps) : 0;
+    const paceSegKm = Number(norm.pace_s_km) || 0;
     const paceFmt = _formatarVelocidadeDisplay(velMps, norm.tipo);
     const execId = 'ATIV_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 
-    sheet.appendRow([
+    const linha = [
       execId,                                    // 1  EXEC_ID
       norm.ath_id,                               // 2  ATH_ID
-      norm.nome_atleta,                          // 3  NOME
-      norm.data ? new Date(norm.data) : '',      // 4  DATA
+      norm.atleta,                               // 3  NOME
+      norm.data_hora ? new Date(norm.data_hora) : '', // 4 DATA
       norm.tipo,                                 // 5  TIPO (normalizado PT-BR)
       'Strava',                                  // 6  FONTE
       norm.strava_id,                            // 7  STRAVA_ID
-      norm.nome,                                 // 8  NOME_ATIV
-      (norm.tempo_movimento_s || 0) / 86400,     // 9  MOV_S (fração de dia)
+      norm.nome_atividade,                       // 8  NOME_ATIV
+      (norm.tempo_mov_s || 0) / 86400,           // 9  MOV_S (fração de dia)
       (a.elapsed_time || 0) / 86400,             // 10 TOTAL_S
       a.distance ? Math.round(a.distance) : 0,  // 11 DIST_M (metros brutos)
-      norm.distancia_km,                         // 12 DIST_KM (normalizado)
+      norm.dist_km,                              // 12 DIST_KM (normalizado)
       velMps,                                    // 13 VEL_MPS (m/s raw — analytics)
       velKmMin,                                  // 14 VEL_KMMIN
       paceSegKm,                                 // 15 PACE_S (s/km — analytics)
       paceFmt,                                   // 16 PACE_FMT (display)
       norm.fc_media,                             // 17 FC_MED (int normalizado)
       norm.fc_max,                               // 18 FC_MAX (int normalizado)
-      norm.elevacao_m,                           // 19 ELEV (m inteiro)
+      norm.elev_m,                               // 19 ELEV (m inteiro)
       norm.calorias,                             // 20 CAL (kcal inteiro)
-      '',                                        // 21 CADENCIA
-      norm.potencia_media_w,                     // 22 POTENCIA (W inteiro)
+      norm.cadencia,                             // 21 CADENCIA
+      norm.potencia_w,                           // 22 POTENCIA (W inteiro)
       '',                                        // 23 ROTA — polyline REMOVIDA (só Supabase)
       new Date(),                                // 24 IMPORTADO
       '',                                        // 25 PSE (entrada manual 1-10)
-    ]);
-    existentes.add(sid);
-    count++;;
-  }
-  _log(athId, 'INFO', '_gravarAtividades', count + ' novas de ' + atividades.length + ' recebidas', '');
-  console.log('[GRAVAR] athId=' + athId + ' count=' + count + ' de ' + atividades.length);
+    ];
 
-  // Recalcular métricas se houver novas atividades
-  if (count > 0) {
+    const linhaExistente = existentes.get(sid);
+    if (linhaExistente) {
+      if (linhaExistente > dataAtual.length) continue;
+      const atual = dataAtual[linhaExistente - 1].slice(0, 25);
+      if (!_atividadePrecisaReparo_(atual)) continue;
+
+      // Preserva campos internos e manuais; recompõe apenas uma linha que já
+      // está comprovadamente incompleta com a resposta oficial da Strava.
+      linha[0] = atual[0] || linha[0];
+      linha[23] = atual[23] || linha[23];
+      linha[24] = atual[24] === undefined ? '' : atual[24];
+      linhasReparadas.push({ numero: linhaExistente, valores: linha });
+      dataAtual[linhaExistente - 1] = linha;
+      reparadas++;
+      continue;
+    }
+
+    novasLinhas.push(linha);
+    existentes.set(sid, sheet.getLastRow() + novasLinhas.length);
+    count++;
+  }
+
+  _gravarBlocosAtividades_(sheet, linhasReparadas);
+  if (novasLinhas.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, novasLinhas.length, 25).setValues(novasLinhas);
+  }
+
+  _log(athId, 'INFO', '_gravarAtividades',
+    count + ' novas; ' + reparadas + ' reparadas de ' + atividades.length + ' recebidas', '');
+  console.log('[GRAVAR] athId=' + athId + ' novas=' + count +
+    ' reparadas=' + reparadas + ' de ' + atividades.length);
+
+  // Recalcular métricas se houver atividade nova ou reparo de dado antigo.
+  if (count > 0 || reparadas > 0) {
     try {
       recalcularMetricasAposAtividade(athId);
     } catch (e) {
@@ -433,6 +461,36 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
   }
 
   return count;
+}
+
+/** Uma atividade existente só é regravada quando faltam campos estruturais. */
+function _atividadePrecisaReparo_(linha) {
+  return !String(linha[2] || '').trim() ||
+    !linha[3] ||
+    !String(linha[7] || '').trim() ||
+    (Number(linha[10]) > 0 && !(Number(linha[11]) > 0));
+}
+
+/** Agrupa linhas contíguas para reduzir chamadas à planilha. */
+function _gravarBlocosAtividades_(sheet, itens) {
+  if (!itens.length) return;
+  itens.sort((a, b) => a.numero - b.numero);
+  let inicio = itens[0].numero;
+  let anterior = inicio;
+  let valores = [itens[0].valores];
+
+  for (let i = 1; i < itens.length; i++) {
+    const item = itens[i];
+    if (item.numero === anterior + 1) {
+      valores.push(item.valores);
+    } else {
+      sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
+      inicio = item.numero;
+      valores = [item.valores];
+    }
+    anterior = item.numero;
+  }
+  sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
 }
 
 // ── Formatar pace em segundos para "5:30 /km" ─────────────────────────────────
@@ -1575,7 +1633,7 @@ function _salvarTokensPlanilha(athId, tokenData) {
     tokenData.nome || '',
     tokenData.accessToken,
     tokenData.refreshToken || '',
-    tokenData.expiresAt || 0,
+    _expiresAtSeg_(tokenData.expiresAt),
     tokenData.scope || '',
     tokenData.stravaId || '',
     agora,
@@ -1611,7 +1669,7 @@ function _salvarTokensPlanilha(athId, tokenData) {
  * @param {string} athId
  * @param {object} tokenData  { accessToken, refreshToken, expiresAt, scope, stravaId, nome }
  * @param {string} origem     'oauth_callback' | 'refresh_token' | 'manual'
- * @returns {boolean} true se ao menos a planilha foi salva com sucesso
+ * @returns {boolean} true se ao menos uma cópia durável foi salva com sucesso
  */
 function persistirCredenciaisStrava(athId, tokenData, origem) {
   if (!_isAthIdValido_(athId)) {
@@ -1627,17 +1685,26 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
 
   const erros = [];
   let salvo = false;
+  let backupLocalSalvo = false;
+  let supabaseSalvo = false;
 
   // Primeira gravação: cópia de recuperação atômica no próprio projeto.
   // Nunca remove o refresh_token anterior enquanto o novo conjunto não foi
   // validado. Assim, uma falha posterior na planilha ou no Supabase não perde
   // a credencial recém-rotacionada pela Strava.
   if (_isRefreshTokenValido_(tokenData.refreshToken)) {
-    PropertiesService.getScriptProperties().setProperties({
-      ['AT_' + athId]: String(tokenData.accessToken),
-      ['RT_' + athId]: String(tokenData.refreshToken),
-      ['EX_' + athId]: String(tokenData.expiresAt || 0)
-    }, false);
+    try {
+      PropertiesService.getScriptProperties().setProperties({
+        ['AT_' + athId]: String(tokenData.accessToken),
+        ['RT_' + athId]: String(tokenData.refreshToken),
+        ['EX_' + athId]: String(_expiresAtSeg_(tokenData.expiresAt))
+      }, false);
+      backupLocalSalvo = true;
+    } catch (e) {
+      erros.push('ScriptProperties: ' + e.message);
+      _logEvento_('ERRO', 'persistirCredenciaisStrava', athId,
+        'Falha na cópia local; continuando com Planilha e Supabase', e.message);
+    }
   }
 
   // ── 1. Planilha ─────────────────────────────────────
@@ -1659,15 +1726,21 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
   // ── 2. Supabase tokens_strava ────────────────────────
   if (typeof supaUpsertToken === 'function') {
     try {
-      supaUpsertToken(
+      supabaseSalvo = supaUpsertToken(
         athId,
         tokenData.nome || '',
         tokenData.accessToken,
         tokenData.refreshToken || '',
         tokenData.expiresAt || 0
       );
-      _logEvento_('INFO', 'persistirCredenciaisStrava', athId,
-        'supaUpsertToken OK [' + origem + ']', '');
+      if (supabaseSalvo) {
+        _logEvento_('INFO', 'persistirCredenciaisStrava', athId,
+          'supaUpsertToken OK [' + origem + ']', '');
+      } else {
+        erros.push('Supabase tokens_strava: gravação não confirmada');
+        _logEvento_('AVISO', 'persistirCredenciaisStrava', athId,
+          'Supabase não confirmou o backup; outras cópias preservadas', origem);
+      }
     } catch (e) {
       erros.push('Supabase tokens_strava: ' + e.message);
       _logEvento_('ERRO', 'persistirCredenciaisStrava', athId,
@@ -1706,7 +1779,7 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
         athId,
         tokenData.refreshToken || '',
         tokenData.accessToken,
-        tokenData.expiresAt || 0
+        _expiresAtSeg_(tokenData.expiresAt)
       );
     } catch (e) {
       // Backup é secundário — não bloqueia, não loga como erro crítico
@@ -1718,7 +1791,7 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
     console.warn('[PATCH] persistirCredenciaisStrava [' + athId + '] erros parciais: ' + erros.join(' | '));
   }
 
-  return salvo; // true se ao menos a planilha foi gravada
+  return salvo || backupLocalSalvo || supabaseSalvo;
 }
 
 
@@ -1864,10 +1937,7 @@ function _getValidAccessToken(athId) {
   // Token expirado ou expirando — verifica se há refresh_token válido
   if (!_isRefreshTokenValido_(row.refreshToken)) {
     _logEvento_('AVISO', '_getValidAccessToken', athId,
-      'Token expirado e refresh_token ausente ou inválido — marcando Reconectar', '');
-    if (typeof _atualizarStatusCadastro === 'function') {
-      try { _atualizarStatusCadastro(athId, false, row.stravaId || ''); } catch (_) { }
-    }
+      'Token expirado e refresh_token ausente nas fontes disponíveis; status preservado', '');
     return null;
   }
 
@@ -1892,6 +1962,42 @@ function _getValidAccessToken(athId) {
     return novo ? novo.accessToken : null;
   } catch (e) {
     _logEvento_('ERRO', '_getValidAccessToken', athId, 'Refresh falhou', e.message);
+    return null;
+  } finally {
+    try { lock.releaseLock(); } catch (_) { }
+  }
+}
+
+/**
+ * Força uma única renovação após um HTTP 401, sem iniciar OAuth e sem alterar o
+ * status do aluno. Se outra execução já tiver gravado um access_token diferente,
+ * reutiliza essa cópia em vez de rotacionar o refresh_token novamente.
+ */
+function _forcarRefreshAccessToken_(athId, accessTokenRecusado) {
+  if (!_isAthIdValido_(athId)) return null;
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+    const atual = _getTokenRow_(athId);
+    if (!atual) return null;
+
+    const tokenAtual = String(atual.accessToken || '').trim();
+    const expiraAtual = _expiresAtSeg_(atual.expiresAt);
+    if (tokenAtual && tokenAtual !== String(accessTokenRecusado || '').trim() &&
+        expiraAtual > Math.floor(Date.now() / 1000) + 60) {
+      return tokenAtual;
+    }
+
+    if (!_isRefreshTokenValido_(atual.refreshToken)) {
+      _logEvento_('ERRO', '_forcarRefreshAccessToken_', athId,
+        'HTTP 401 e nenhum refresh_token válido nas fontes de segurança; status preservado', '');
+      return null;
+    }
+    const novo = _refreshAccessToken(athId, atual.refreshToken);
+    return novo ? novo.accessToken : null;
+  } catch (e) {
+    _logEvento_('ERRO', '_forcarRefreshAccessToken_', athId,
+      'Renovação de recuperação após HTTP 401 falhou; status preservado', e.message);
     return null;
   } finally {
     try { lock.releaseLock(); } catch (_) { }
@@ -2139,7 +2245,9 @@ function verificarStatusStravaAtletas() {
       statusReal = strOk || 'Pendente';
     }
 
-    const ultimaSync = tokenRow ? new Date(tokenRow.expiresAt || 0) : '';
+    const ultimaSync = tokenRow && tokenRow.expiresAt
+      ? new Date(_expiresAtSeg_(tokenRow.expiresAt) * 1000)
+      : '';
     novasLinhas.push([athId, nome, email, statusReal, strId, ultimaSync, '', '', '', '']);
   }
 
@@ -2175,8 +2283,8 @@ function verificarStatusStravaAtletas() {
 function diagnosticoStravaHiperativoV3() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const log = [];
-  const agora = Date.now();
-  const MARGEM_MS = 10 * 60 * 1000;
+  const agoraSeg = Math.floor(Date.now() / 1000);
+  const MARGEM_SEG = 10 * 60;
 
   log.push('════════════════════════════════════════════════');
   log.push(' DIAGNÓSTICO STRAVA — HIPERATIVO V3  (v2)');
@@ -2233,7 +2341,7 @@ function diagnosticoStravaHiperativoV3() {
         temAccess: !!(String(linha[PATCH_COL_TOK_.ACCESS_TOKEN] || '').trim()),
         refreshToken: rt,
         temRefreshValido: _isRefreshTokenValido_(rt),
-        expiresAt: Number(linha[PATCH_COL_TOK_.EXPIRES_AT]) || 0,
+        expiresAt: _expiresAtSeg_(linha[PATCH_COL_TOK_.EXPIRES_AT]),
         stravaId: String(linha[PATCH_COL_TOK_.STRAVA_ID] || '').trim(),
       });
     });
@@ -2289,8 +2397,8 @@ function diagnosticoStravaHiperativoV3() {
   }
 
   // ── 5. TOKENS VENCIDOS — com renovação segura ──────────
-  const vencidos = tokensPlanilha.filter(t => t.expiresAt > 0 && t.expiresAt < agora + MARGEM_MS);
-  const validos_ = tokensPlanilha.filter(t => t.expiresAt > agora + MARGEM_MS);
+  const vencidos = tokensPlanilha.filter(t => t.expiresAt > 0 && t.expiresAt < agoraSeg + MARGEM_SEG);
+  const validos_ = tokensPlanilha.filter(t => t.expiresAt > agoraSeg + MARGEM_SEG);
 
   log.push('\n── TOKENS VENCIDOS / EXPIRANDO ──────────────────');
   log.push('Válidos:   ' + validos_.length);

@@ -190,7 +190,7 @@ function onOpen() {
   // ─── ATIVIDADES ──────────────────────────────────────────────────────────
   menu.addSubMenu(
     ui.createMenu('🏃 Atividades')
-      .addItem('✅ Importar 20 ativ. por atleta (seguro)', 'importarUltimas20AtividadesPorAtleta')
+      .addItem('✅ Processar fila Strava agora (seguro)', 'importarUltimas20AtividadesPorAtleta')
       .addItem('⬇️ Importar atividades agora (todos)', 'importarAtividades')
       .addSeparator()
       .addItem('📊 Atualizar painel geral', 'atualizarPainel')
