@@ -34,6 +34,7 @@ function processarFilaStrava() {
   const inicio = Date.now();
   const props = PropertiesService.getScriptProperties();
   try {
+    _qAgendarBackfillGlobalUmaVez_(props);
     if (!_qTemCapacidade_(props)) {
       const rate = _qEstadoRate_(props);
       _log('SISTEMA', 'AVISO', 'processarFilaStrava',
@@ -224,6 +225,20 @@ function agendarHistoricoCompletoTodos() {
   _log('SISTEMA', 'INFO', 'agendarHistoricoCompletoTodos',
     agendados + ' atletas agendados; ' + preservados + ' cursores existentes preservados', '');
   return { agendados, preservados, total: ids.size };
+}
+
+/**
+ * Inicializa automaticamente a primeira varredura histórica global depois da
+ * implantação desta versão. O marcador impede reagendamento em ciclos futuros.
+ */
+function _qAgendarBackfillGlobalUmaVez_(props) {
+  const marcador = 'Q_HIST_ALL_V1_AGENDADO_EM';
+  if (props.getProperty(marcador)) return;
+  const resumo = agendarHistoricoCompletoTodos();
+  props.setProperty(marcador, new Date().toISOString());
+  _log('SISTEMA', 'INFO', '_qAgendarBackfillGlobalUmaVez_',
+    'Backfill global inicializado: ' + resumo.agendados +
+    ' agendados, ' + resumo.preservados + ' preservados', '');
 }
 
 // ── STATUS DA FILA (menu → diagnóstico) ──────────────────────────────────────
