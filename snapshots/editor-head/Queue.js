@@ -249,6 +249,9 @@ function _qAgendarBackfillGlobalUmaVez_(props) {
     props.setProperty('Q_HIST_' + athId, '0');
     props.deleteProperty('Q_HIST_DONE_' + athId);
   });
+  if (typeof sincronizarTokensParaSupabase === 'function') {
+    sincronizarTokensParaSupabase();
+  }
   props.setProperty(marcador, new Date().toISOString());
   _log('SISTEMA', 'INFO', '_qAgendarBackfillGlobalUmaVez_',
     'Backfill de reparo inicializado para ' + ids.size + ' atletas conectados', '');
