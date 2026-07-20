@@ -114,7 +114,7 @@ function iniciarConexaoStrava(p) {
 
   const cad = shCad.getDataRange().getValues();
   let encontrado = false;
-  for (let i = 2; i < cad.length; i++) {
+  for (let i = 0; i < cad.length; i++) {
     const idLinha = String(cad[i][H.CAD.ID - 1] || '').trim().toUpperCase();
     const emailLinha = String(cad[i][H.CAD.EMAIL - 1] || '').trim().toLowerCase();
     const status = String(cad[i][H.CAD.STATUS - 1] || '').trim().toLowerCase();
@@ -130,10 +130,16 @@ function iniciarConexaoStrava(p) {
   const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
   if (shTok) {
     const tok = shTok.getDataRange().getValues();
-    for (let i = 2; i < tok.length; i++) {
+    // Algumas versões antigas da aba TOKENS gravaram o primeiro atleta na
+    // linha 2. Percorrer todas as linhas e validar o ATH_ID preserva também
+    // esse refresh token sem confundir títulos/cabeçalhos com atletas.
+    for (let i = 0; i < tok.length; i++) {
       const idTok = String(tok[i][H.TOK.ATH_ID - 1] || '').trim().toUpperCase();
       const refresh = String(tok[i][H.TOK.REFRESH - 1] || '').trim();
-      if (idTok === athId && refresh) {
+      const idTokValido = typeof _isAthIdValido_ === 'function'
+        ? _isAthIdValido_(idTok)
+        : /^ATH[A-Z0-9_-]{3,30}$/.test(idTok);
+      if (idTokValido && idTok === athId && refresh) {
         _log(athId, 'INFO', 'iniciarConexaoStrava', 'Conexão já existente; refresh token preservado.', '');
         return { ok: false, erro: 'Seu Strava já está conectado. Nenhuma nova autorização é necessária.' };
       }
