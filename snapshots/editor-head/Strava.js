@@ -364,17 +364,19 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
   const sheet = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   if (!sheet) throw new Error('Aba ATIVIDADES não encontrada.');
 
-  const existentes = new Set();
+  const existentes = new Map();
   const dataAtual = sheet.getDataRange().getValues();
-  for (let i = 1; i < dataAtual.length; i++) {
+  for (let i = 2; i < dataAtual.length; i++) {
     const sid = String(dataAtual[i][H.ATIV.STRAVA_ID - 1] || '').trim();
-    if (sid) existentes.add(sid);
+    if (sid && !existentes.has(sid)) existentes.set(sid, i + 1);
   }
 
   let count = 0;
+  let reparadas = 0;
+  const novasLinhas = [];
+  const linhasReparadas = [];
   for (const a of atividades) {
     const sid = String(a.id || '');
-    if (existentes.has(sid)) continue;
 
     // ── Normalização oficial via Normalizar.gs ─────────────────────────────────
     const norm = normalizarAtividadeStrava(a, { ath_id: athId, nome: nomeAtleta });
@@ -388,7 +390,7 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
     const paceFmt = _formatarVelocidadeDisplay(velMps, norm.tipo);
     const execId = 'ATIV_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 
-    sheet.appendRow([
+    const linha = [
       execId,                                    // 1  EXEC_ID
       norm.ath_id,                               // 2  ATH_ID
       norm.atleta,                               // 3  NOME
@@ -414,15 +416,42 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
       '',                                        // 23 ROTA — polyline REMOVIDA (só Supabase)
       new Date(),                                // 24 IMPORTADO
       '',                                        // 25 PSE (entrada manual 1-10)
-    ]);
-    existentes.add(sid);
-    count++;;
-  }
-  _log(athId, 'INFO', '_gravarAtividades', count + ' novas de ' + atividades.length + ' recebidas', '');
-  console.log('[GRAVAR] athId=' + athId + ' count=' + count + ' de ' + atividades.length);
+    ];
 
-  // Recalcular métricas se houver novas atividades
-  if (count > 0) {
+    const linhaExistente = existentes.get(sid);
+    if (linhaExistente) {
+      if (linhaExistente > dataAtual.length) continue;
+      const atual = dataAtual[linhaExistente - 1].slice(0, 25);
+      if (!_atividadePrecisaReparo_(atual)) continue;
+
+      // Preserva campos internos e manuais; recompõe apenas uma linha que já
+      // está comprovadamente incompleta com a resposta oficial da Strava.
+      linha[0] = atual[0] || linha[0];
+      linha[23] = atual[23] || linha[23];
+      linha[24] = atual[24] === undefined ? '' : atual[24];
+      linhasReparadas.push({ numero: linhaExistente, valores: linha });
+      dataAtual[linhaExistente - 1] = linha;
+      reparadas++;
+      continue;
+    }
+
+    novasLinhas.push(linha);
+    existentes.set(sid, sheet.getLastRow() + novasLinhas.length);
+    count++;
+  }
+
+  _gravarBlocosAtividades_(sheet, linhasReparadas);
+  if (novasLinhas.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, novasLinhas.length, 25).setValues(novasLinhas);
+  }
+
+  _log(athId, 'INFO', '_gravarAtividades',
+    count + ' novas; ' + reparadas + ' reparadas de ' + atividades.length + ' recebidas', '');
+  console.log('[GRAVAR] athId=' + athId + ' novas=' + count +
+    ' reparadas=' + reparadas + ' de ' + atividades.length);
+
+  // Recalcular métricas se houver atividade nova ou reparo de dado antigo.
+  if (count > 0 || reparadas > 0) {
     try {
       recalcularMetricasAposAtividade(athId);
     } catch (e) {
@@ -432,6 +461,36 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
   }
 
   return count;
+}
+
+/** Uma atividade existente só é regravada quando faltam campos estruturais. */
+function _atividadePrecisaReparo_(linha) {
+  return !String(linha[2] || '').trim() ||
+    !linha[3] ||
+    !String(linha[7] || '').trim() ||
+    (Number(linha[10]) > 0 && !(Number(linha[11]) > 0));
+}
+
+/** Agrupa linhas contíguas para reduzir chamadas à planilha. */
+function _gravarBlocosAtividades_(sheet, itens) {
+  if (!itens.length) return;
+  itens.sort((a, b) => a.numero - b.numero);
+  let inicio = itens[0].numero;
+  let anterior = inicio;
+  let valores = [itens[0].valores];
+
+  for (let i = 1; i < itens.length; i++) {
+    const item = itens[i];
+    if (item.numero === anterior + 1) {
+      valores.push(item.valores);
+    } else {
+      sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
+      inicio = item.numero;
+      valores = [item.valores];
+    }
+    anterior = item.numero;
+  }
+  sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
 }
 
 // ── Formatar pace em segundos para "5:30 /km" ─────────────────────────────────

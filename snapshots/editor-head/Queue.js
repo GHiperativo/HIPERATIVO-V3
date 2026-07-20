@@ -232,13 +232,26 @@ function agendarHistoricoCompletoTodos() {
  * implantação desta versão. O marcador impede reagendamento em ciclos futuros.
  */
 function _qAgendarBackfillGlobalUmaVez_(props) {
-  const marcador = 'Q_HIST_ALL_V1_AGENDADO_EM';
+  const marcador = 'Q_HIST_ALL_V2_REPARO_AGENDADO_EM';
   if (props.getProperty(marcador)) return;
-  const resumo = agendarHistoricoCompletoTodos();
+
+  const shTok = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.TOKENS);
+  if (!shTok) throw new Error('Aba TOKENS não encontrada.');
+  const dados = shTok.getDataRange().getValues();
+  const ids = new Set();
+  for (let i = 1; i < dados.length; i++) {
+    const athId = String(dados[i][H.TOK.ATH_ID - 1] || '').trim();
+    const status = String(dados[i][H.TOK.STATUS - 1] || '').trim().toLowerCase();
+    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente') ids.add(athId);
+  }
+
+  ids.forEach(athId => {
+    props.setProperty('Q_HIST_' + athId, '0');
+    props.deleteProperty('Q_HIST_DONE_' + athId);
+  });
   props.setProperty(marcador, new Date().toISOString());
   _log('SISTEMA', 'INFO', '_qAgendarBackfillGlobalUmaVez_',
-    'Backfill global inicializado: ' + resumo.agendados +
-    ' agendados, ' + resumo.preservados + ' preservados', '');
+    'Backfill de reparo inicializado para ' + ids.size + ' atletas conectados', '');
 }
 
 // ── STATUS DA FILA (menu → diagnóstico) ──────────────────────────────────────
