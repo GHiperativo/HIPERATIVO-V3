@@ -428,7 +428,7 @@ function corrigirErrosDaPlanilha() {
     }
   }
 
-  // ── 3. ATIVIDADES — corrigir cabeçalho da linha 2 para novo formato (24 cols) ─
+  // ── 3. ATIVIDADES — cabeçalho compatível com o gravador operacional (25 cols) ─
   const shAtiv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   if (shAtiv) {
     const cabAtiv = [
@@ -436,13 +436,13 @@ function corrigirErrosDaPlanilha() {
       'Nome Atividade', 'Tempo Mov (s)', 'Tempo Total (s)', 'Distância (m)',
       'Distância (km)', 'Vel. (m/s)', 'Vel. (km/min)', 'Pace (s/km)',
       'Pace (min:ss)', 'FC Média', 'FC Máxima', 'Elevação (m)', 'Calorias',
-      'Cadência (spm)', 'Potência (W)', 'Rota', 'Importado em',
+      'Cadência (spm)', 'Potência (W)', 'Rota', 'Importado em', 'PSE (1-10)',
     ];
     shAtiv.getRange(2, 1, 1, cabAtiv.length)
       .setValues([cabAtiv])
       .setFontWeight('bold').setFontColor('#FFFFFF')
       .setBackground('#003D7A').setHorizontalAlignment('center');
-    log.push('✅ ATIVIDADES: cabeçalho linha 2 atualizado (24 cols, km/min, pace s/km).');
+    log.push('✅ ATIVIDADES: cabeçalho linha 2 atualizado (25 cols, km/min, pace s/km e PSE).');
   }
 
   // ── 4. STRAVA STATUS — reconstruir do zero (clearContents já está no fn) ──────

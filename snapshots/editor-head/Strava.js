@@ -384,34 +384,33 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
     // Campos legados: mantidos para compatibilidade com Metricas.gs e Queue.gs
     const velMps = Number(a.average_speed) > 0 ? Number(a.average_speed) : 0;
     const velKmMin = velMps > 0 ? Math.round(velMps * 0.06 * 1000) / 1000 : 0;
-    const paceSegKm = (velMps > 0 && norm.pace_min_km !== null)
-      ? Math.round(1000 / velMps) : 0;
+    const paceSegKm = Number(norm.pace_s_km) || 0;
     const paceFmt = _formatarVelocidadeDisplay(velMps, norm.tipo);
     const execId = 'ATIV_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 
     sheet.appendRow([
       execId,                                    // 1  EXEC_ID
       norm.ath_id,                               // 2  ATH_ID
-      norm.nome_atleta,                          // 3  NOME
-      norm.data ? new Date(norm.data) : '',      // 4  DATA
+      norm.atleta,                               // 3  NOME
+      norm.data_hora ? new Date(norm.data_hora) : '', // 4 DATA
       norm.tipo,                                 // 5  TIPO (normalizado PT-BR)
       'Strava',                                  // 6  FONTE
       norm.strava_id,                            // 7  STRAVA_ID
-      norm.nome,                                 // 8  NOME_ATIV
-      (norm.tempo_movimento_s || 0) / 86400,     // 9  MOV_S (fração de dia)
+      norm.nome_atividade,                       // 8  NOME_ATIV
+      (norm.tempo_mov_s || 0) / 86400,           // 9  MOV_S (fração de dia)
       (a.elapsed_time || 0) / 86400,             // 10 TOTAL_S
       a.distance ? Math.round(a.distance) : 0,  // 11 DIST_M (metros brutos)
-      norm.distancia_km,                         // 12 DIST_KM (normalizado)
+      norm.dist_km,                              // 12 DIST_KM (normalizado)
       velMps,                                    // 13 VEL_MPS (m/s raw — analytics)
       velKmMin,                                  // 14 VEL_KMMIN
       paceSegKm,                                 // 15 PACE_S (s/km — analytics)
       paceFmt,                                   // 16 PACE_FMT (display)
       norm.fc_media,                             // 17 FC_MED (int normalizado)
       norm.fc_max,                               // 18 FC_MAX (int normalizado)
-      norm.elevacao_m,                           // 19 ELEV (m inteiro)
+      norm.elev_m,                               // 19 ELEV (m inteiro)
       norm.calorias,                             // 20 CAL (kcal inteiro)
-      '',                                        // 21 CADENCIA
-      norm.potencia_media_w,                     // 22 POTENCIA (W inteiro)
+      norm.cadencia,                             // 21 CADENCIA
+      norm.potencia_w,                           // 22 POTENCIA (W inteiro)
       '',                                        // 23 ROTA — polyline REMOVIDA (só Supabase)
       new Date(),                                // 24 IMPORTADO
       '',                                        // 25 PSE (entrada manual 1-10)
