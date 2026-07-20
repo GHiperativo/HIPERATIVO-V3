@@ -433,7 +433,7 @@ function corrigirErrosDaPlanilha() {
   if (shAtiv) {
     const cabAtiv = [
       'EXEC_ID', 'ATH_ID', 'Nome', 'Data', 'Tipo', 'Fonte', 'Strava ID',
-      'Nome Atividade', 'Tempo Mov (s)', 'Tempo Total (s)', 'Distância (m)',
+      'Nome Atividade', 'Tempo Movimento', 'Tempo Total', 'Distância (m)',
       'Distância (km)', 'Vel. (m/s)', 'Vel. (km/min)', 'Pace (s/km)',
       'Pace (min:ss)', 'FC Média', 'FC Máxima', 'Elevação (m)', 'Calorias',
       'Cadência (spm)', 'Potência (W)', 'Rota', 'Importado em', 'PSE (1-10)',
