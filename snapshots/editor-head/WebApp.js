@@ -14,6 +14,12 @@ function doGet(e) {
     return _processarCallbackOAuth(e);
   }
 
+  // Link geral para atletas já cadastrados conectarem o Strava.
+  // Exige ATH_ID + email e nunca sobrescreve um refresh token existente.
+  if (p.conectar === 'true') {
+    return _paginaConexaoStravaGeral();
+  }
+
   // Página individual do atleta (?atleta=ATH_001)
   if (p.atleta) {
     return _paginaAtleta(p.atleta.toUpperCase().trim());
@@ -42,6 +48,100 @@ function doGet(e) {
       return _paginaMensagemWA('Erro', 'Erro ao carregar formulário: ' + err2.message, '#c00');
     }
   }
+}
+
+// ── Conexão Strava para atleta já cadastrado ────────────────────────────────
+function _paginaConexaoStravaGeral() {
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <base target="_top"><title>Conectar Strava — Grupo Hiperativo</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:Arial,sans-serif;background:#f4f6f9;color:#1a2340}
+    .card{width:100%;max-width:520px;background:#fff;border-radius:16px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+    .logo{text-align:center;font-size:34px;font-weight:900;color:#1a3a8a}.logo span{color:#00a846}
+    h1{text-align:center;font-size:24px;margin:18px 0 8px}p{line-height:1.5;color:#566078;text-align:center}
+    label{display:block;margin:18px 0 6px;font-weight:700;color:#1a3a8a}
+    input{width:100%;padding:13px;border:1px solid #cbd3e1;border-radius:9px;font-size:16px;text-transform:none}
+    #athId{text-transform:uppercase}button{width:100%;margin-top:24px;padding:14px;border:0;border-radius:9px;
+    background:#fc4c02;color:#fff;font-size:16px;font-weight:800;cursor:pointer}button:disabled{opacity:.55}
+    #msg{display:none;margin-top:16px;padding:12px;border-radius:8px;line-height:1.45;text-align:center}
+    .nota{font-size:12px;color:#778197;margin-top:18px}
+  </style></head><body><main class="card">
+    <div class="logo">⚡ HIPER<span>ATIVO</span></div>
+    <h1>Conectar minha conta Strava</h1>
+    <p>Use os mesmos dados do seu cadastro. A validação evita vincular a conta à pessoa errada.</p>
+    <form id="form">
+      <label for="athId">Código do atleta</label>
+      <input id="athId" name="athId" placeholder="Ex.: ATH123456" required autocomplete="off">
+      <label for="email">E-mail cadastrado</label>
+      <input id="email" name="email" type="email" placeholder="seu@email.com" required autocomplete="email">
+      <button id="btn" type="submit">CONECTAR COM STRAVA</button>
+    </form>
+    <div id="msg"></div>
+    <p class="nota">Se sua conta já estiver conectada, o token atual será preservado e nenhuma nova autorização será solicitada.</p>
+  </main><script>
+    const form=document.getElementById('form'),btn=document.getElementById('btn'),msg=document.getElementById('msg');
+    function mostrar(texto,ok){msg.textContent=texto;msg.style.display='block';msg.style.color=ok?'#176b36':'#a61b1b';
+      msg.style.background=ok?'#e9f7ef':'#fdecec';}
+    form.addEventListener('submit',function(ev){ev.preventDefault();btn.disabled=true;btn.textContent='VALIDANDO...';
+      google.script.run.withSuccessHandler(function(resp){
+        if(resp&&resp.ok&&resp.url){mostrar('Cadastro validado. Abrindo o Strava...',true);window.top.location.href=resp.url;return;}
+        btn.disabled=false;btn.textContent='CONECTAR COM STRAVA';mostrar((resp&&resp.erro)||'Não foi possível validar os dados.',false);
+      }).withFailureHandler(function(){btn.disabled=false;btn.textContent='CONECTAR COM STRAVA';
+        mostrar('Falha temporária. Tente novamente em instantes.',false);
+      }).iniciarConexaoStrava({athId:document.getElementById('athId').value,email:document.getElementById('email').value});
+    });
+  </script></body></html>`;
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Conectar Strava — Grupo Hiperativo')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function iniciarConexaoStrava(p) {
+  const athId = String((p && p.athId) || '').trim().toUpperCase();
+  const email = String((p && p.email) || '').trim().toLowerCase();
+  const idValido = typeof _isAthIdValido_ === 'function'
+    ? _isAthIdValido_(athId)
+    : /^ATH[A-Z0-9_-]{3,30}$/.test(athId);
+  if (!idValido || !email || email.indexOf('@') < 1) {
+    return { ok: false, erro: 'Confira o código do atleta e o e-mail cadastrado.' };
+  }
+
+  const ss = SpreadsheetApp.openById(_getSsId());
+  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!shCad) return { ok: false, erro: 'Cadastro temporariamente indisponível.' };
+
+  const cad = shCad.getDataRange().getValues();
+  let encontrado = false;
+  for (let i = 2; i < cad.length; i++) {
+    const idLinha = String(cad[i][H.CAD.ID - 1] || '').trim().toUpperCase();
+    const emailLinha = String(cad[i][H.CAD.EMAIL - 1] || '').trim().toLowerCase();
+    const status = String(cad[i][H.CAD.STATUS - 1] || '').trim().toLowerCase();
+    if (idLinha === athId && emailLinha === email && status !== 'inativo') {
+      encontrado = true;
+      break;
+    }
+  }
+  if (!encontrado) {
+    return { ok: false, erro: 'Os dados não conferem com um cadastro ativo. Fale com o treinador.' };
+  }
+
+  const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  if (shTok) {
+    const tok = shTok.getDataRange().getValues();
+    for (let i = 2; i < tok.length; i++) {
+      const idTok = String(tok[i][H.TOK.ATH_ID - 1] || '').trim().toUpperCase();
+      const refresh = String(tok[i][H.TOK.REFRESH - 1] || '').trim();
+      if (idTok === athId && refresh) {
+        _log(athId, 'INFO', 'iniciarConexaoStrava', 'Conexão já existente; refresh token preservado.', '');
+        return { ok: false, erro: 'Seu Strava já está conectado. Nenhuma nova autorização é necessária.' };
+      }
+    }
+  }
+
+  _log(athId, 'INFO', 'iniciarConexaoStrava', 'Cadastro validado para iniciar OAuth.', '');
+  return { ok: true, url: _gerarUrlOAuth(athId) };
 }
 
 // ── Processar callback OAuth do Strava ─────────────────────
@@ -128,8 +228,12 @@ function buscarAtividadesTodosAtletas() {
 
 // ── Configurar triggers automáticos ────────────────────────
 function configurarTriggers() {
-  // Remover todos os triggers existentes primeiro
-  ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+  // Preservar automações alheias ao fluxo. Remover apenas duplicatas das duas
+  // rotinas gerenciadas aqui e recriá-las de forma determinística.
+  const gerenciados = ['triggerImportacaoAutomatica', 'limparLogsAntigos'];
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (gerenciados.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+  });
 
   // Trigger de importação: a cada 3 horas
   ScriptApp.newTrigger('triggerImportacaoAutomatica')

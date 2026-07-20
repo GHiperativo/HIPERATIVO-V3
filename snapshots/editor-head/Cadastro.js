@@ -394,13 +394,9 @@ function enviarLinkStravaEmail() {
     return;
   }
   
-  const callbackUrl = webAppUrl + '?callback=strava&athId=' + athId;
-  const oauthUrl = 'https://www.strava.com/oauth/authorize' +
-    '?client_id=' + clientId +
-    '&response_type=code' +
-    '&redirect_uri=' + encodeURIComponent(callbackUrl) +
-    '&approval_prompt=force' +
-    '&scope=activity:read_all,profile:read_all';
+  // Usar o fluxo OAuth único com state assinado pelo ATH_ID. O fluxo antigo
+  // montava um callback sem state e o retorno acabava caindo no cadastro.
+  const oauthUrl = _gerarUrlOAuth(athId);
   
   const primeiroNome = String(nome).split(' ')[0];
   const adminEmail = props.getProperty('ADMIN_EMAIL') || 'contato@ghiperativo.com.br';
