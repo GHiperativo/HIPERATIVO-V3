@@ -198,7 +198,7 @@ function onOpen() {
       .addSeparator()
       .addItem('📦 Importar lote RAW→CONV (seguro)', 'importarLoteRawConvertidoTodosAtletas_SEGURO')
       .addItem('📈 Gerar Métricas Beta', 'gerarMetricasBeta')
-      .addItem('⏰ Ativar auto-atualização (1h)', 'configurarTriggerAtividades_')
+      .addItem('⏰ Ativar automação principal (3h)', 'configurarTriggerAtividades_')
       .addItem('📊 Atualizar Ranking Completo', 'atualizarRankingExpandido')
   );
 

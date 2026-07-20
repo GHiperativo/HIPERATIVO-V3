@@ -45,6 +45,12 @@ function _gerarUrlCadastro(athId) {
   return webAppUrl + '?cadastro=true&athId=' + encodeURIComponent(athId);
 }
 
+function _gerarUrlConexaoStrava() {
+  const webAppUrl = PropertiesService.getScriptProperties().getProperty('WEBAPP_URL') || '';
+  if (!webAppUrl) throw new Error('WEBAPP_URL não configurado. Implante o WebApp primeiro.');
+  return webAppUrl + '?conectar=true';
+}
+
 function _gerarUrlOAuth(athId) {
   const props = PropertiesService.getScriptProperties();
   const clientId = props.getProperty('STRAVA_CLIENT_ID') || '';
@@ -633,13 +639,18 @@ function triggerImportacaoAutomatica() {
     _log('SISTEMA', 'ERRO', 'triggerImportacaoAutomatica', 'Erro nas métricas: ' + e.message, '');
   }
 
-  // 3. Atualizar abas de ranking
+  // 3. Atualizar rankings de forma independente: uma aba não bloqueia a outra.
   try {
     atualizarRankingSheet();
-    atualizarRankingExpandido();
     _log('SISTEMA', 'INFO', 'triggerImportacaoAutomatica', 'RANKING atualizado.', '');
   } catch (e) {
     _log('SISTEMA', 'AVISO', 'triggerImportacaoAutomatica', 'RANKING não atualizado: ' + e.message, '');
+  }
+  try {
+    atualizarRankingExpandido();
+    _log('SISTEMA', 'INFO', 'triggerImportacaoAutomatica', 'RANKING COMPLETO atualizado.', '');
+  } catch (e) {
+    _log('SISTEMA', 'AVISO', 'triggerImportacaoAutomatica', 'RANKING COMPLETO não atualizado: ' + e.message, '');
   }
 
   // 3b. Atualizar análise científica (CTL/ATL/TSB)

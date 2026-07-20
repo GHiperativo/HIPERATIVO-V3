@@ -816,14 +816,14 @@ function atualizarAtividadesMenu_() {
 }
 
 function configurarTriggerAtividades_() {
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'triggerImportacaoAutomatica') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('triggerImportacaoAutomatica').timeBased().everyHours(1).create();
-  Logger.log('Trigger: 1h criado'); return 'Trigger 1h OK';
+  configurarTriggers();
+  Logger.log('Automação principal configurada: ciclo a cada 3h');
+  return 'Automação principal 3h OK';
 }
 
-function triggerImportacaoAutomatica() {
+// Rotina legada mantida apenas para execução manual. O nome antigo conflitava
+// com a automação principal do Strava e podia impedir Ranking/Métricas/Análise.
+function triggerImportacaoRawConvertida_() {
   var r = importarLoteRawConvertidoTodosAtletas_SEGURO();
   if (r && !r.rateLimitHit && r.novas > 0) corrigirDadosConv_();
 }

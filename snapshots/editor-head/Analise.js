@@ -1,3 +1,130 @@
+/**
+ * Atualiza a visão consolidada de carga de treino por atleta.
+ * CTL/ATL usam médias exponenciais de 42 e 7 dias; ACWR compara 7d com a
+ * média semanal de 28d. Quando não há PSE, a intensidade é estimada por FC.
+ * Nenhum token ou dado de cadastro é alterado por esta rotina.
+ */
+function atualizarAnaliseSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shAtiv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
+  const shCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const shMet = ss.getSheetByName(H.SHEETS.METRICAS);
+  if (!shAtiv || !shCad) return 0;
+
+  let sh = ss.getSheetByName('🔬 ANÁLISE');
+  if (!sh) sh = ss.insertSheet('🔬 ANÁLISE');
+
+  const tz = Session.getScriptTimeZone() || 'America/Sao_Paulo';
+  const hoje = new Date();
+  hoje.setHours(12, 0, 0, 0);
+  const inicio = new Date(hoje.getTime() - 89 * 86400000);
+
+  const fcMaxMap = {};
+  if (shMet) {
+    shMet.getDataRange().getValues().slice(2).forEach(r => {
+      const id = String(r[H.MET.ATH_ID - 1] || '').trim().toUpperCase();
+      const fc = Number(r[H.MET.FC_MAX - 1]) || 0;
+      if (id && fc > 0) fcMaxMap[id] = fc;
+    });
+  }
+
+  const atletas = shCad.getDataRange().getValues().slice(2)
+    .map(r => ({
+      id: String(r[H.CAD.ID - 1] || '').trim().toUpperCase(),
+      nome: String(r[H.CAD.NOME - 1] || '').trim(),
+      status: String(r[H.CAD.STATUS - 1] || '').trim().toLowerCase()
+    }))
+    .filter(a => a.id && a.status !== 'inativo' &&
+      (typeof _isAthIdValido_ !== 'function' || _isAthIdValido_(a.id)));
+
+  const porAtleta = {};
+  atletas.forEach(a => { porAtleta[a.id] = { dias: {}, z: [0, 0, 0], atividades: 0 }; });
+
+  shAtiv.getDataRange().getValues().slice(2).forEach(r => {
+    const id = String(r[H.ATIV.ATH_ID - 1] || '').trim().toUpperCase();
+    const data = r[H.ATIV.DATA - 1];
+    if (!porAtleta[id] || !(data instanceof Date) || data < inicio || data > new Date(hoje.getTime() + 86400000)) return;
+
+    const minutos = Math.max(0, (Number(r[H.ATIV.MOV_S - 1]) || Number(r[H.ATIV.TOTAL_S - 1]) || 0) / 60);
+    if (!minutos) return;
+    const pseInformado = Number(r[H.ATIV.PSE - 1]) || 0;
+    const fcMed = Number(r[H.ATIV.FC_MED - 1]) || 0;
+    const fcMax = fcMaxMap[id] || Number(r[H.ATIV.FC_MAX - 1]) || 0;
+    const pctFc = fcMed > 0 && fcMax > 0 ? fcMed / fcMax : 0;
+    const rpe = pseInformado >= 1 && pseInformado <= 10
+      ? pseInformado
+      : (pctFc >= 0.90 ? 9 : pctFc >= 0.80 ? 7 : pctFc > 0 ? 4 : 3);
+    const carga = Math.round(minutos * rpe * 10) / 10;
+    const chave = Utilities.formatDate(data, tz, 'yyyy-MM-dd');
+    porAtleta[id].dias[chave] = (porAtleta[id].dias[chave] || 0) + carga;
+    porAtleta[id].atividades++;
+
+    const zona = pctFc > 0
+      ? (pctFc <= 0.80 ? 0 : pctFc <= 0.90 ? 1 : 2)
+      : (rpe <= 4 ? 0 : rpe <= 7 ? 1 : 2);
+    porAtleta[id].z[zona] += minutos;
+  });
+
+  const linhas = atletas.map(a => {
+    const info = porAtleta[a.id];
+    if (!info || !info.atividades) return [a.nome || a.id, '—', '—', '—', '—', '—', '—', '—', '—', '⚠️ Sem atividades válidas em 90 dias'];
+
+    let ctl = 0, atl = 0, carga7 = 0, carga28 = 0;
+    for (let d = 0; d < 90; d++) {
+      const data = new Date(inicio.getTime() + d * 86400000);
+      const chave = Utilities.formatDate(data, tz, 'yyyy-MM-dd');
+      const carga = info.dias[chave] || 0;
+      ctl += (carga - ctl) / 42;
+      atl += (carga - atl) / 7;
+      if (d >= 83) carga7 += carga;
+      if (d >= 62) carga28 += carga;
+    }
+    const tsb = ctl - atl;
+    const crSemanal = carga28 / 4;
+    const acwr = crSemanal > 0 ? carga7 / crSemanal : 0;
+    const totalZona = info.z.reduce((s, v) => s + v, 0) || 1;
+    const pct = info.z.map(v => Math.round(v / totalZona * 100));
+    let diag = '✅ Carga equilibrada';
+    if (acwr > 1.5) diag = '🔴 Pico de carga — revisar recuperação';
+    else if (acwr > 1.3) diag = '🟠 Carga alta — acompanhar fadiga';
+    else if (tsb < -20) diag = '🟠 Fadiga acumulada';
+    else if (acwr > 0 && acwr < 0.8) diag = '🔵 Carga recente abaixo da base';
+    else if (tsb > 20) diag = '🟢 Recuperado / baixa carga aguda';
+    return [
+      a.nome || a.id,
+      Math.round(ctl * 10) / 10,
+      Math.round(atl * 10) / 10,
+      Math.round(tsb * 10) / 10,
+      acwr ? Math.round(acwr * 100) / 100 : '—',
+      pct[0] + '%', pct[1] + '%', pct[2] + '%',
+      '—', diag
+    ];
+  });
+
+  sh.getRange(1, 1, Math.max(sh.getLastRow(), 4), sh.getMaxColumns()).breakApart();
+  sh.getRange(1, 1, Math.max(sh.getLastRow(), 4), 10).clearContent();
+  sh.getRange(1, 1, 1, 10).merge().setValue('🔬 ANÁLISE DE CARGA — HIPERATIVO V3')
+    .setBackground('#001F3F').setFontColor('#FFFFFF').setFontWeight('bold')
+    .setFontSize(13).setHorizontalAlignment('center');
+  const ts = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
+  sh.getRange(2, 1, 1, 10).merge().setValue('Atualizado: ' + ts + ' | CTL 42d · ATL 7d · TSB · ACWR 7/28d · zonas por FC/PSE')
+    .setBackground('#F3F6FA').setFontColor('#5D6675').setFontStyle('italic')
+    .setHorizontalAlignment('center');
+  const headers = ['Atleta','CTL','ATL','TSB','ACWR','Z1-Z2%','Z3%','Z4-Z5%','Decoupling','Diagnóstico'];
+  sh.getRange(3, 1, 1, headers.length).setValues([headers])
+    .setBackground('#174A7E').setFontColor('#FFFFFF').setFontWeight('bold')
+    .setHorizontalAlignment('center').setWrap(true);
+  if (linhas.length) sh.getRange(4, 1, linhas.length, headers.length).setValues(linhas);
+  sh.setFrozenRows(3);
+  [24,10,10,10,10,10,9,10,13,38].forEach((w, i) => sh.setColumnWidth(i + 1, w * 7));
+  if (linhas.length) {
+    sh.getRange(4, 1, linhas.length, 10).setFontSize(10).setVerticalAlignment('middle');
+    sh.getRange(4, 2, linhas.length, 8).setHorizontalAlignment('center');
+  }
+  SpreadsheetApp.flush();
+  return linhas.length;
+}
+
 function estabilizacaoRawConvertida() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var log = [];

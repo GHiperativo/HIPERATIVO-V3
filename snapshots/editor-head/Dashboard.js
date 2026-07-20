@@ -49,7 +49,7 @@ function atualizarRankingSheet() {
 
     if (!mapa[athId]) mapa[athId] = { nome, km30: 0, treinos30: 0, kmTotal: 0, treinosTotal: 0, ultimoTreino: null };
 
-    mapa[athId].kmTotal++;
+    mapa[athId].kmTotal += km;
     mapa[athId].treinosTotal++;
     if (!mapa[athId].ultimoTreino || data > mapa[athId].ultimoTreino) {
       mapa[athId].ultimoTreino = data;
@@ -66,6 +66,9 @@ function atualizarRankingSheet() {
     .sort((a, b) => b[2] - a[2]);
 
   // Escrever na aba
+  // clearContents não remove mesclagens antigas. Desfazê-las evita a falha
+  // "selecione todas as células" sem alterar dados fora da área do ranking.
+  shRank.getRange(1, 1, Math.max(shRank.getLastRow(), 4), shRank.getMaxColumns()).breakApart();
   shRank.clearContents();
 
   const tituloRange = shRank.getRange(1, 1, 1, 6);
@@ -601,8 +604,9 @@ function atualizarRankingExpandido() {
 
   let shRE = ss.getSheetByName('🏆 RANKING COMPLETO');
   if (!shRE) shRE = ss.insertSheet('🏆 RANKING COMPLETO');
+  shRE.getRange(1, 1, Math.max(shRE.getLastRow(), 4), shRE.getMaxColumns()).breakApart();
   shRE.clearContents();
-  shRE.setFrozenRows(0);
+  shRE.setFrozenRows(2);
 
   const corAzul  = '#001F3F';
   const dados    = shAtiv.getDataRange().getValues().slice(2);
@@ -651,7 +655,7 @@ function atualizarRankingExpandido() {
     };
 
     const m = mapa[athId];
-    m.kmTotal++;
+    m.kmTotal += km;
     m.treinosTotal++;
     m.tiposMap[tipo] = (m.tiposMap[tipo] || 0) + 1;
     m.elevTotal += elev;

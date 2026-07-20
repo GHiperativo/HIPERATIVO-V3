@@ -23,8 +23,12 @@ function recalcularMetricasAposAtividade(athId) {
 
 // ── CALCULAR MÉTRICAS DE TODOS OS ATLETAS ────────────────────────────────────
 function calcularMetricasTodos() {
-  const wsCad = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.CADASTRO);
-  if (!wsCad) return;
+  const ss = SpreadsheetApp.getActive();
+  const wsCad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const wsMet = ss.getSheetByName(H.SHEETS.METRICAS);
+  if (!wsCad || !wsMet) return;
+
+  _garantirEstruturaMetricas_(wsMet);
 
   const atletas = wsCad.getDataRange().getValues().slice(2)
     .filter(r => r[H.CAD.ID - 1] && r[H.CAD.STATUS - 1] !== 'Inativo');
@@ -52,11 +56,16 @@ function _calcularMetricasAtleta(athId) {
   // Filtrar atividades de corrida dos últimos 28 dias
   const cutoff = new Date(Date.now() - 28 * 86400000);
   const rows   = wsAtiv.getDataRange().getValues().slice(2)
-    .filter(r => String(r[H.ATIV.ATH_ID - 1]) === athId
-               && r[H.ATIV.DATA - 1] instanceof Date
-               && r[H.ATIV.DATA - 1] >= cutoff
-               && String(r[H.ATIV.TIPO - 1]) === 'Corrida'
-               && Number(r[H.ATIV.PACE_S - 1]) > 0);
+    .filter(r => {
+      const psNovo = Number(r[H.ATIV.PACE_S - 1]);
+      const psAntigo = Number(r[H.ATIV.PACE_FMT - 1]);
+      const paceValido = (psNovo > 10 && psNovo < 3600) || (psAntigo > 10 && psAntigo < 3600);
+      return String(r[H.ATIV.ATH_ID - 1]) === athId
+        && r[H.ATIV.DATA - 1] instanceof Date
+        && r[H.ATIV.DATA - 1] >= cutoff
+        && String(r[H.ATIV.TIPO - 1]) === 'Corrida'
+        && paceValido;
+    });
 
   const registroAtual = _getRegistroMetrica(wsMet, athId);
   const manual = _resolverPerfilManual(athId, registroAtual);
@@ -89,12 +98,13 @@ function _calcularMetricasAtleta(athId) {
   const fcMed = fcMedArr.length ? Math.round(fcMedArr.reduce((a, b) => a + b, 0) / fcMedArr.length) : Math.round(fcMax * 0.83);
   const volSem = distArr.length ? Math.round(distArr.reduce((a, b) => a + b, 0) / (28 / 7) * 10) / 10 : manual.volSem;
 
-  // VO2máx estimado (fórmula simplificada: velocidade × coeficiente de FC)
+  // VO2máx estimado pela equação metabólica de corrida (ACSM), usando o
+  // melhor pace médio recente. Evita o erro anterior de unidade km/min, que
+  // achatava todos os resultados no piso de 20.
   let vo2 = manual.vo2;
-  if (paceMed > 0 && fcMed && fcMax) {
-    const vel = 60 / paceMed; // km/min
-    const pct = (fcMed - 60) / (fcMax - 60);
-    vo2 = Math.max(20, Math.min(80, Math.round((vel * 3.5 + 3.5) * pct * 0.9)));
+  if (paceRap > 0) {
+    const velocidadeMMin = 60000 / paceRap;
+    vo2 = Math.max(20, Math.min(80, Math.round(3.5 + 0.2 * velocidadeMMin)));
   }
 
   // Salvar na aba MÉTRICAS
@@ -111,22 +121,24 @@ function _calcularMetricasAtleta(athId) {
   } else if (nRows < 6) {
     origem    = `📊 Dados parciais (${nRows} treinos em 28d)`;
     confianca = 'Média';
-    obsExibir = manual.obs || 'Métricas baseadas em dados reais, mas volume ainda baixo.';
+    obsExibir = 'Métricas baseadas em dados reais, mas o volume ainda é baixo.';
   } else {
     origem    = `✅ Dados reais (${nRows} treinos em 28d)`;
     confianca = 'Alta';
-    obsExibir = manual.obs || '';
+    obsExibir = 'Métricas calculadas com atividades reais dos últimos 28 dias.';
   }
 
   // VO2max: armazenar como inteiro (sem decimal — precisão real não justifica decimal)
   const vo2Int = vo2 ? Math.round(vo2) : 0;
   const metricasBase = [athId, _getNomeAtleta(athId), new Date(), vo2Int, paceMed, paceRap, paceLento, fcMax, fcMed, volSem];
+  const zonas = _calcularZonasPace_(paceMed, paceRap);
   const metricasManuais = [manual.perfil, manual.volume, manual.intensidade, origem, confianca, obsExibir];
   const rowsMet = wsMet.getDataRange().getValues();
 
   for (let i = 2; i < rowsMet.length; i++) {
     if (String(rowsMet[i][H.MET.ATH_ID - 1]) === athId) {
       wsMet.getRange(i + 1, 1, 1, metricasBase.length).setValues([metricasBase]);
+      wsMet.getRange(i + 1, H.MET.Z1_LENTO, 1, zonas.length).setValues([zonas]);
       wsMet.getRange(i + 1, H.MET.PERFIL_MAN, 1, metricasManuais.length).setValues([metricasManuais]);
       _log(athId, 'INFO', '_calcularMetricasAtleta', `VO2máx: ${vo2}, Pace médio: ${paceMed}s/km`, '');
       return;
@@ -134,8 +146,41 @@ function _calcularMetricasAtleta(athId) {
   }
   const linhaVazia = _primeiraLinhaVazia(wsMet, H.MET.ATH_ID);
   wsMet.getRange(linhaVazia, 1, 1, metricasBase.length).setValues([metricasBase]);
+  wsMet.getRange(linhaVazia, H.MET.Z1_LENTO, 1, zonas.length).setValues([zonas]);
   wsMet.getRange(linhaVazia, H.MET.PERFIL_MAN, 1, metricasManuais.length).setValues([metricasManuais]);
   _log(athId, 'INFO', '_calcularMetricasAtleta', `Novo registro — VO2máx: ${vo2}`, '');
+}
+
+function _garantirEstruturaMetricas_(ws) {
+  const headers = [
+    'ID Atleta','Nome Atleta','Atualizado em','VO2máx Est.',
+    'Pace Médio (s/km)','Pace Rápido (s/km)','Pace Lento (s/km)',
+    'FC Máxima','FC Média','Vol./Semana (km)',
+    'Z1 Lento','Z1 Rápido','Z2 Lento','Z2 Rápido',
+    'Z3 Lento','Z3 Rápido','Z4 Lento','Z5 Mín',
+    'Perfil Manual','Volume Manual','Intensidade Manual',
+    'Origem dos Dados','Confiança','Observações'
+  ];
+  ws.getRange(1, 1, 1, ws.getMaxColumns()).breakApart();
+  ws.getRange(1, 1, 1, headers.length).merge().setValue('📈 MÉTRICAS E ZONAS DE TREINO — HIPERATIVO V3');
+  ws.getRange(2, 1, 1, headers.length).setValues([headers])
+    .setBackground('#1D9E75').setFontColor('#FFFFFF').setFontWeight('bold')
+    .setHorizontalAlignment('center').setWrap(true);
+  ws.setFrozenRows(2);
+}
+
+function _calcularZonasPace_(paceMed, paceRap) {
+  if (!paceMed || paceMed <= 0) return ['', '', '', '', '', '', '', ''];
+  const fmt = s => {
+    const total = Math.max(1, Math.round(s));
+    return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
+  };
+  return [
+    fmt(paceMed * 1.20), fmt(paceMed * 1.08),
+    fmt(paceMed * 1.04), fmt(paceMed * 0.96),
+    fmt(paceMed * 0.94), fmt(paceMed * 0.87),
+    fmt(paceMed * 0.84), fmt(paceRap || paceMed * 0.80)
+  ];
 }
 
 function _getRegistroMetrica(wsMet, athId) {
