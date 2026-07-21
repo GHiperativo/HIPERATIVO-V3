@@ -176,7 +176,7 @@ function onOpen() {
       .addItem('🔗 Gerar link de cadastro (copiar)', 'gerarLinkCadastro')
       .addItem('📋 Ver todos os atletas', 'abrirCadastro')
       .addSeparator()
-      .addItem('🔄 Conectar atleta ao Strava (link manual)', 'gerarLinkStrava')
+      .addItem('🔄 Link geral de conexão com Strava', 'gerarLinkStrava')
       .addItem('📡 Verificar status Strava (todos)', 'verificarStatusStravaAtletas')
       .addItem('🔍 Verificar status REAL Strava (via API)', 'verificarStatusRealStrava')
       .addItem('📤 Enviar link Strava para pendentes', 'enviarLinkStravaDesconectados')
@@ -184,21 +184,21 @@ function onOpen() {
       .addItem('🔗 Gerar links reconeção (tokens inválidos)', 'gerarLinksReconexaoTodos')
       .addItem('👤 Importar perfil do atleta', 'importarPerfilAtleta')
       .addSeparator()
-      .addItem('🗑️ Remover atleta (limpar linha)', 'removerAtleta')
+      .addItem('⏸️ Desativar atleta (preservar histórico)', 'removerAtleta')
   );
 
   // ─── ATIVIDADES ──────────────────────────────────────────────────────────
   menu.addSubMenu(
     ui.createMenu('🏃 Atividades')
       .addItem('✅ Processar fila Strava agora (seguro)', 'importarUltimas20AtividadesPorAtleta')
-      .addItem('⬇️ Importar atividades agora (todos)', 'importarAtividades')
+      .addItem('⬇️ Iniciar histórico completo (todos)', 'iniciarImportacaoHistoricaCompleta')
       .addSeparator()
       .addItem('📊 Atualizar painel geral', 'atualizarPainel')
-      .addItem('🧹 Limpar erros de fórmula', 'limparErrosFormula')
+      .addItem('🧹 Reparar fórmulas operacionais', 'repararFormulasOperacionais')
       .addSeparator()
       .addItem('📦 Importar lote RAW→CONV (seguro)', 'importarLoteRawConvertidoTodosAtletas_SEGURO')
       .addItem('📈 Gerar Métricas Beta', 'gerarMetricasBeta')
-      .addItem('⏰ Ativar automação principal (3h)', 'configurarTriggerAtividades_')
+      .addItem('⏰ Ativar automação principal (3h)', 'configurarAutomacaoPrincipal')
       .addItem('📊 Atualizar Ranking Completo', 'atualizarRankingExpandido')
   );
 
@@ -228,8 +228,7 @@ function onOpen() {
   // ─── INTEGRAÇÕES ─────────────────────────────────────────────────────────
   menu.addSubMenu(
     ui.createMenu('🔌 Integrações')
-      .addItem('📋 Criar formulário Google Forms', 'criarFormularioGoogleForms')
-      .addItem('🔗 Gerar WebApp de cadastro (link)', 'mostrarUrlWebApp')
+      .addItem('🔗 Exibir WebApp de cadastro', 'mostrarUrlWebApp')
       .addSeparator()
       .addItem('📊 Vincular planilha de destino', 'vincularPlanilhaDestino')
       .addItem('📤 Push de dados para planilha externa', 'pushDadosPlanilhaExterna')
@@ -242,7 +241,6 @@ function onOpen() {
       .addItem('🔬 Atualizar Análise Científica (CTL/ATL/TSB)', 'atualizarAnaliseSheet')
       .addSeparator()
       .addItem('📊 Status da Fila Strava', 'statusFila')
-      .addItem('🔄 Resetar contadores de rate limit', 'resetarContadoresFila')
   );
 
   // ─── CONFIGURAÇÕES E SISTEMA ─────────────────────────────────────────────
@@ -255,18 +253,14 @@ function onOpen() {
       .addItem('📧 Configurar email admin', 'configurarEmailAdmin')
       .addSeparator()
       .addItem('🕐 Criar trigger automático (3h)', 'configurarTriggers')
-      .addItem('🗑️ Remover todos os triggers', 'removerTriggers')
       .addSeparator()
+      .addItem('🩺 Diagnosticar menu e integrações', 'diagnosticarMenuHiperativo')
       .addItem('🔄 Sincronizar atletas em todas as abas', 'sincronizarAtletasEmTodasAbas')
       .addItem('🔢 Corrigir fórmulas do PAINEL', 'corrigirFormulasPainel')
-      .addItem('📐 Migrar dados de atividades (km/min)', 'migrarAtividades')
-      .addItem('🔢 Corrigir distância e ritmo (linhas existentes)', 'migrarFormatacaoAtividades')
-      .addItem('🗂️ Reformatar cabeçalho do CADASTRO (40 cols)', 'reformatarCabecalhoCadastro')
       .addItem('🔧 Corrigir erros da planilha (linhas/colunas)', 'corrigirErrosDaPlanilha')
       .addSeparator()
       .addItem('🔴 Ver log de erros', 'abrirErros')
       .addItem('🔧 Restaurar estrutura (seguro)', 'restaurarEstrutura')
-      .addItem('♻️ Reinstalar estrutura', 'setupPlanilha')
   );
 
   menu.addToUi();
@@ -335,8 +329,8 @@ function mostrarUrlWebApp() {
 
 function removerAtleta() {
   const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt('🗑️ Remover Atleta', 
-    'Digite o ATH_ID do atleta a remover (ex: ATH001):',
+  const r = ui.prompt('⏸️ Desativar Atleta',
+    'Digite o ATH_ID do atleta a desativar (ex: ATH001):',
     ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() !== ui.Button.OK) return;
   const athId = r.getResponseText().trim().toUpperCase();
@@ -348,12 +342,14 @@ function removerAtleta() {
   
   for (let i = 1; i < dados.length; i++) {
     if (String(dados[i][H.CAD.ID - 1]).toUpperCase() === athId) {
-      const conf = ui.alert('⚠️ Confirmar remoção?', 
-        'Atleta: ' + dados[i][H.CAD.NOME - 1] + '\nID: ' + athId + '\n\nIsso apagará todos os dados desta linha.',
+      const conf = ui.alert('⚠️ Confirmar desativação?',
+        'Atleta: ' + dados[i][H.CAD.NOME - 1] + '\nID: ' + athId +
+        '\n\nO cadastro, os tokens e todo o histórico serão preservados.',
         ui.ButtonSet.YES_NO);
       if (conf === ui.Button.YES) {
-        sh.deleteRow(i + 1);
-        ui.alert('✅ Atleta ' + athId + ' removido com sucesso.');
+        sh.getRange(i + 1, H.CAD.STATUS).setValue('Inativo');
+        _log(athId, 'INFO', 'removerAtleta', 'Atleta desativado; histórico e tokens preservados.', '');
+        ui.alert('✅ Atleta ' + athId + ' desativado. Nenhum dado foi apagado.');
       }
       return;
     }
@@ -387,9 +383,14 @@ function gerarRelatorioGeral() {
   const cadDados = shCad ? shCad.getDataRange().getValues() : [];
   const atvDados = shAtv ? shAtv.getDataRange().getValues() : [];
   
-  const totalAtletas = cadDados.length > 1 ? cadDados.length - 1 : 0;
-  const atletasStrava = cadDados.slice(1).filter(r => r[H.CAD.STRAVA_OK - 1] === true || r[H.CAD.STRAVA_OK - 1] === 'TRUE').length;
-  const totalAtividades = atvDados.length > 1 ? atvDados.length - 1 : 0;
+  const atletasValidos = cadDados.slice(2).filter(r => _isAthIdValido_(r[H.CAD.ID - 1]));
+  const totalAtletas = atletasValidos.length;
+  const atletasStrava = atletasValidos.filter(r =>
+    String(r[H.CAD.STRAVA_OK - 1] || '').trim().toLowerCase() === 'sim'
+  ).length;
+  const totalAtividades = atvDados.slice(2).filter(r =>
+    _isAthIdValido_(r[H.ATIV.ATH_ID - 1]) && r[H.ATIV.DATA - 1] instanceof Date
+  ).length;
   
   const msg = [
     '📊 RELATÓRIO GERAL — HIPERATIVO V3',
@@ -412,11 +413,12 @@ function gerarRankingAtletas() {
   const dados = shAtv.getDataRange().getValues();
   if (dados.length < 2) { SpreadsheetApp.getUi().alert('Sem atividades registradas.'); return; }
   
-  // Count activities per athlete (assuming col 1 = ATH_ID, col 5 = distance or similar)
+  // Colunas operacionais: B=ATH_ID, C=nome. A é EXEC_ID e não identifica atleta.
   const ranking = {};
-  dados.slice(1).forEach(row => {
-    const id = String(row[0]);
-    if (!ranking[id]) ranking[id] = {count: 0, nome: String(row[1] || id)};
+  dados.slice(2).forEach(row => {
+    const id = String(row[H.ATIV.ATH_ID - 1] || '').trim();
+    if (!_isAthIdValido_(id)) return;
+    if (!ranking[id]) ranking[id] = {count: 0, nome: String(row[H.ATIV.NOME - 1] || id)};
     ranking[id].count++;
   });
   
@@ -500,6 +502,14 @@ function pushDadosPlanilhaExterna() {
     SpreadsheetApp.getUi().alert('❌ Nenhuma planilha vinculada.\nVá em 🔌 Integrações → Vincular planilha de destino.');
     return;
   }
+
+  const ui = SpreadsheetApp.getUi();
+  const conf = ui.alert(
+    '📤 Sincronizar cadastro operacional',
+    'Serão enviados apenas identificação e dados operacionais. CPF, saúde, emergência, PAR-Q e assinatura não serão copiados.\n\nContinuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (conf !== ui.Button.YES) return;
   
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -512,7 +522,21 @@ function pushDadosPlanilhaExterna() {
       if (!destCad) destCad = dest.insertSheet('CADASTRO_HIPERATIVO');
       else destCad.clearContents();
       
-      const dados = shCad.getDataRange().getValues();
+      const origem = shCad.getDataRange().getValues();
+      const colunas = [
+        H.CAD.ID, H.CAD.NOME, H.CAD.EMAIL, H.CAD.WHATS, H.CAD.MOD,
+        H.CAD.PLANO, H.CAD.CIDADE, H.CAD.ESTADO, H.CAD.DATA_CAD,
+        H.CAD.STRAVA_OK, H.CAD.STRAVA_ID, H.CAD.STATUS
+      ];
+      const dados = [[
+        'ATH_ID', 'Nome', 'E-mail', 'WhatsApp', 'Modalidade', 'Plano',
+        'Cidade', 'Estado', 'Data Cadastro', 'Strava', 'ID Strava', 'Status'
+      ]];
+      origem.slice(2).forEach(row => {
+        if (_isAthIdValido_(row[H.CAD.ID - 1])) {
+          dados.push(colunas.map(col => row[col - 1]));
+        }
+      });
       if (dados.length > 0) {
         destCad.getRange(1, 1, dados.length, dados[0].length).setValues(dados);
       }
@@ -663,13 +687,8 @@ function configuracaoRapida() {
 
 
 function setCredenciaisStrava() {
-  var props = PropertiesService.getScriptProperties();
-  props.setProperty('STRAVA_CLIENT_ID',     '153043');
-  props.setProperty('STRAVA_CLIENT_SECRET', 'cdd187f3cdd47676220fdba5d9994c1cc838c7bc');
-
-  Logger.log('Credenciais Strava configuradas com sucesso.');
-  Logger.log('CLIENT_ID: ' + props.getProperty('STRAVA_CLIENT_ID'));
-  Logger.log('SECRET: SET (' + props.getProperty('STRAVA_CLIENT_SECRET').length + ' chars)');
+  // Compatibilidade com atalhos antigos: nunca grava segredo no código-fonte.
+  configurarCredenciais();
 }
 
 
@@ -683,7 +702,7 @@ function diagnosticoRapido() {
   Logger.log('WEBAPP_URL: ' + webApp);
 }
 
-function salvarConfig() { setCredenciaisStrava(); }
+function salvarConfig() { configurarCredenciais(); }
 
 
 // ── GERAR LINKS DE RECONEXAO STRAVA ──────────────────────────────────────

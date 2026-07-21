@@ -196,7 +196,7 @@ function registrarAtletaParaHistorico(athId) {
  * Agenda uma única varredura completa para todos os tokens válidos existentes.
  * Não reinicia atletas já concluídos e não altera nenhuma credencial.
  */
-function agendarHistoricoCompletoTodos() {
+function agendarHistoricoCompletoTodos(reiniciarConcluidos) {
   const props = PropertiesService.getScriptProperties();
   const shTok = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.TOKENS);
   if (!shTok) throw new Error('Aba TOKENS não encontrada.');
@@ -214,17 +214,72 @@ function agendarHistoricoCompletoTodos() {
   ids.forEach(athId => {
     const histKey = 'Q_HIST_' + athId;
     const doneKey = 'Q_HIST_DONE_' + athId;
-    if (props.getProperty(histKey) !== null || props.getProperty(doneKey) !== null) {
+    if (!reiniciarConcluidos && (props.getProperty(histKey) !== null || props.getProperty(doneKey) !== null)) {
       preservados++;
       return;
     }
     props.setProperty(histKey, '0');
+    if (reiniciarConcluidos) props.deleteProperty(doneKey);
     agendados++;
   });
 
   _log('SISTEMA', 'INFO', 'agendarHistoricoCompletoTodos',
     agendados + ' atletas agendados; ' + preservados + ' cursores existentes preservados', '');
   return { agendados, preservados, total: ids.size };
+}
+
+function iniciarImportacaoHistoricaCompleta() {
+  const ui = SpreadsheetApp.getUi();
+  const conf = ui.alert(
+    '⬇️ Importar histórico completo',
+    'O sistema percorrerá todas as páginas disponíveis do Strava, em lotes seguros.\n' +
+    'Atividades existentes serão deduplicadas e nenhum token será alterado manualmente.\n\nContinuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (conf !== ui.Button.YES) return;
+
+  const ag = agendarHistoricoCompletoTodos(true);
+  processarFilaStrava();
+  ui.alert(
+    '✅ Importação iniciada',
+    ag.total + ' atletas foram colocados na fila. O processo continuará automaticamente até a última página disponível.',
+    ui.ButtonSet.OK
+  );
+}
+
+function configurarAutomacaoPrincipal() {
+  configurarTriggers();
+}
+
+function diagnosticarMenuHiperativo() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const cad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const tok = ss.getSheetByName(H.SHEETS.TOKENS);
+  const cadRows = cad ? cad.getDataRange().getValues().slice(2) : [];
+  const tokRows = tok ? tok.getDataRange().getValues().slice(1) : [];
+  const atletas = cadRows.filter(r => _isAthIdValido_(r[H.CAD.ID - 1])).length;
+  const tokens = tokRows.filter(r =>
+    _isAthIdValido_(r[H.TOK.ATH_ID - 1]) && _isRefreshTokenValido_(String(r[H.TOK.REFRESH - 1] || ''))
+  ).length;
+  const triggers = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+  const webApp = props.getProperty('WEBAPP_URL') || '';
+  const pendencias = Object.keys(props.getProperties()).filter(k => /^Q_HIST_/.test(k)).length;
+  const linhas = [
+    '🩺 DIAGNÓSTICO HIPERATIVO',
+    'Atletas válidos: ' + atletas,
+    'Conexões com refresh token: ' + tokens,
+    'Históricos em andamento: ' + pendencias,
+    'Automação 3h: ' + (triggers.indexOf('triggerImportacaoAutomatica') >= 0 ? 'ATIVA' : 'AUSENTE'),
+    'Supabase de segurança: ' + (props.getProperty('SUPABASE_KEY') ? 'CONFIGURADO' : 'NÃO CONFIGURADO'),
+    'WebApp: ' + (webApp ? 'CONFIGURADO' : 'NÃO CONFIGURADO'),
+    '',
+    webApp ? 'Cadastro: ' + webApp + '?cadastro=true' : '',
+    webApp ? 'Conexão Strava: ' + webApp + '?conectar=true' : ''
+  ].filter(Boolean);
+  ui.alert(linhas.join('\n'));
+  return { atletas, tokens, pendencias, automacaoAtiva: triggers.indexOf('triggerImportacaoAutomatica') >= 0 };
 }
 
 /**

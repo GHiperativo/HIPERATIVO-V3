@@ -12,7 +12,7 @@
  * Garante que MÉTRICAS refletem o estado mais recente sem precisar de trigger manual.
  */
 function recalcularMetricasAposAtividade(athId) {
-  if (!athId) return;
+  if (!_isAthIdValido_(athId)) return;
   try {
     _calcularMetricasAtleta(athId);
     _log(athId, 'INFO', 'recalcularMetricasAposAtividade', 'Métricas atualizadas após nova atividade.', '');
@@ -29,9 +29,11 @@ function calcularMetricasTodos() {
   if (!wsCad || !wsMet) return;
 
   _garantirEstruturaMetricas_(wsMet);
+  _limparLinhasInvalidasMetricas_(wsMet);
 
   const atletas = wsCad.getDataRange().getValues().slice(2)
-    .filter(r => r[H.CAD.ID - 1] && r[H.CAD.STATUS - 1] !== 'Inativo');
+    .filter(r => _isAthIdValido_(r[H.CAD.ID - 1]) &&
+      String(r[H.CAD.STATUS - 1] || '').trim().toLowerCase() !== 'inativo');
 
   let ok = 0;
   atletas.forEach(r => {
@@ -49,6 +51,7 @@ function calcularMetricasTodos() {
 
 // ── CALCULAR MÉTRICAS DE UM ATLETA ────────────────────────────────────────────
 function _calcularMetricasAtleta(athId) {
+  if (!_isAthIdValido_(athId)) return;
   const wsAtiv = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.ATIVIDADES);
   const wsMet  = SpreadsheetApp.getActive().getSheetByName(H.SHEETS.METRICAS);
   if (!wsAtiv || !wsMet) return;
@@ -169,6 +172,22 @@ function _garantirEstruturaMetricas_(ws) {
   ws.setFrozenRows(2);
 }
 
+function _limparLinhasInvalidasMetricas_(ws) {
+  const lastRow = ws.getLastRow();
+  if (lastRow < 3) return 0;
+  const ids = ws.getRange(3, H.MET.ATH_ID, lastRow - 2, 1).getValues();
+  let limpas = 0;
+  ids.forEach((r, idx) => {
+    const id = String(r[0] || '').trim();
+    if (id && !_isAthIdValido_(id)) {
+      ws.getRange(idx + 3, 1, 1, 24).clearContent();
+      limpas++;
+    }
+  });
+  if (limpas) _log('SISTEMA', 'INFO', '_limparLinhasInvalidasMetricas_', limpas + ' linha(s) inválida(s) removida(s)', '');
+  return limpas;
+}
+
 function _calcularZonasPace_(paceMed, paceRap) {
   if (!paceMed || paceMed <= 0) return ['', '', '', '', '', '', '', ''];
   const fmt = s => {
@@ -278,8 +297,19 @@ function _getNivelAtleta(athId) {
 
 // ── ATUALIZAR PAINEL ───────────────────────────────────────────────────────────
 function atualizarPainel() {
-  _atualizarPainelInterno();
-  try { SpreadsheetApp.getUi().alert('✅ Painel atualizado com sucesso.', '', SpreadsheetApp.getUi().ButtonSet.OK); } catch(_) {}
+  const etapas = [];
+  const executar = (nome, fn) => {
+    try { fn(); etapas.push('✅ ' + nome); }
+    catch (e) { etapas.push('⚠️ ' + nome + ': ' + e.message); _log('SISTEMA', 'AVISO', 'atualizarPainel', nome + ': ' + e.message, ''); }
+  };
+  executar('Fórmulas', () => repararFormulasOperacionais(false));
+  executar('Métricas', calcularMetricasTodos);
+  executar('Ranking', atualizarRankingSheet);
+  executar('Ranking completo', atualizarRankingExpandido);
+  executar('Análise', atualizarAnaliseSheet);
+  executar('Status Strava', atualizarStravaStatusSheet);
+  executar('Painel', _atualizarPainelInterno);
+  try { SpreadsheetApp.getUi().alert('📊 Atualização concluída', etapas.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK); } catch(_) {}
 }
 
 // Versão sem UI para uso em triggers automáticos
@@ -291,5 +321,4 @@ function _atualizarPainelInterno() {
       'Atualizado em: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm')
     );
   }
-  calcularMetricasTodos();
 }

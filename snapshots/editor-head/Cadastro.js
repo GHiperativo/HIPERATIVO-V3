@@ -6,43 +6,9 @@
  */
 
 function limparErrosFormula() {
-  const ss      = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets  = ss.getSheets();
-  const erros   = ['#ERROR!', '#N/A', '#REF!', '#VALUE!', '#NAME?', '#DIV/0!', '#NUM!', '#NULL!'];
-  let   total   = 0;
-
-  for (const sheet of sheets) {
-    const range  = sheet.getDataRange();
-    const values = range.getValues();
-    const rows   = values.length;
-    const cols   = values[0] ? values[0].length : 0;
-    const batch  = [];
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const val = String(values[r][c] || '');
-        if (erros.some(e => val.startsWith(e))) {
-          batch.push({ r: r + 1, c: c + 1 });
-        }
-      }
-    }
-
-    for (const cell of batch) {
-      sheet.getRange(cell.r, cell.c).clearContent();
-      total++;
-    }
-  }
-
-  try {
-    SpreadsheetApp.getUi().alert(
-      '✅ Limpeza concluída!',
-      total + ' células com erro foram limpas em todas as abas.',
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
-  } catch (_) {}
-
-  _log('SISTEMA', 'INFO', 'limparErrosFormula', 'Total de células limpas: ' + total, '');
-  return total;
+  // Compatibilidade com o item antigo: reparar fórmulas conhecidas é seguro;
+  // apagar toda célula com erro pode destruir a fórmula que precisa ser corrigida.
+  return repararFormulasOperacionais(true);
 }
 
 function setupInicial() {
@@ -540,37 +506,78 @@ function forcarRecriarPainel() {
 // ══════════════════════════════════════════════════════
 // CORRIGIR FÓRMULAS DO PAINEL (pt-BR, colunas corretas)
 // ══════════════════════════════════════════════════════
-function corrigirFormulasPainel() {
+function corrigirFormulasPainel(exibirAlerta) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var ui = SpreadsheetApp.getUi();
+  if (exibirAlerta === undefined) exibirAlerta = true;
   try {
     var painel = ss.getSheetByName(H.SHEETS.PAINEL);
     if (!painel) throw new Error("Aba PAINEL nao encontrada");
     var c = H.SHEETS.CADASTRO;
     var a = H.SHEETS.ATIVIDADES;
+    var cad = ss.getSheetByName(c);
+    var ativ = ss.getSheetByName(a);
+    var cadLast = Math.max(3, cad ? cad.getLastRow() : 3);
+    var ativLast = Math.max(3, ativ ? ativ.getLastRow() : 3);
     var q = "\"";
     // Row 6: metricas (STATUS=col26=Z, STRAVA_OK=col24=X) — en-US setFormula
-    painel.getRange(6,1).setFormula("=COUNTA('" + c + "'!A3:A500)");
-    painel.getRange(6,3).setFormula("=COUNTIF('" + c + "'!Z3:Z500;" + q + "Ativo" + q + ")");
-    painel.getRange(6,5).setFormula("=COUNTIF('" + c + "'!X3:X500;" + q + "Sim" + q + ")");
-    painel.getRange(6,7).setFormula("=COUNTIF('" + a + "'!D3:D500;" + q + ">" + q + "&TODAY()-7)");
-    painel.getRange(6,9).setFormula("=IFERROR(TEXT(AVERAGEIF('" + a + "'!E3:E500;" + q + "Corrida" + q + ";'" + a + "'!O3:O500)/86400;" + q + "[mm]:ss" + q + ");" + q + "--" + q + ")");
-    painel.getRange(6,11).setFormula("=IFERROR(ROUND(SUMIF('" + a + "'!E3:E500;" + q + "Corrida" + q + ";'" + a + "'!L3:L500)/MAX(1;COUNTIF('" + a + "'!E3:E500;" + q + "Corrida" + q + "));1);" + q + "--" + q + ")");
+    painel.getRange(6,1).setFormula("=COUNTIF('" + c + "'!A3:A" + cadLast + ";" + q + "ATH*" + q + ")");
+    painel.getRange(6,3).setFormula("=COUNTIFS('" + c + "'!A3:A" + cadLast + ";" + q + "ATH*" + q + ";'" + c + "'!Z3:Z" + cadLast + ";" + q + "Ativo" + q + ")");
+    painel.getRange(6,5).setFormula("=COUNTIFS('" + c + "'!A3:A" + cadLast + ";" + q + "ATH*" + q + ";'" + c + "'!X3:X" + cadLast + ";" + q + "Sim" + q + ")");
+    painel.getRange(6,7).setFormula("=COUNTIF('" + a + "'!D3:D" + ativLast + ";" + q + ">" + q + "&TODAY()-7)");
+    painel.getRange(6,9).setFormula("=IFERROR(TEXT(AVERAGEIF('" + a + "'!E3:E" + ativLast + ";" + q + "Corrida" + q + ";'" + a + "'!O3:O" + ativLast + ")/86400;" + q + "[mm]:ss" + q + ");" + q + "--" + q + ")");
+    painel.getRange(6,11).setFormula("=IFERROR(ROUND(SUMIF('" + a + "'!E3:E" + ativLast + ";" + q + "Corrida" + q + ";'" + a + "'!L3:L" + ativLast + ")/MAX(1;COUNTIF('" + a + "'!E3:E" + ativLast + ";" + q + "Corrida" + q + "));1);" + q + "--" + q + ")");
     // Rows 11-20: ultimas atividades
     for (var i = 0; i < 10; i++) {
       var r = 11 + i;
       var rk = i + 1;
-      painel.getRange(r,1).setFormula("=IFERROR(TEXT(LARGE('" + a + "'!D3:D500;" + rk + ");" + q + "dd/mm/yyyy" + q + ");" + q + q + ")");
-      painel.getRange(r,2).setFormula("=IFERROR(INDEX('" + a + "'!C3:C500;MATCH(LARGE('" + a + "'!D3:D500;" + rk + ");'" + a + "'!D3:D500;0));" + q + q + ")");
-      painel.getRange(r,3).setFormula("=IFERROR(INDEX('" + a + "'!E3:E500;MATCH(LARGE('" + a + "'!D3:D500;" + rk + ");'" + a + "'!D3:D500;0));" + q + q + ")");
-      painel.getRange(r,4).setFormula("=IFERROR(INDEX('" + a + "'!L3:L500;MATCH(LARGE('" + a + "'!D3:D500;" + rk + ");'" + a + "'!D3:D500;0));" + q + q + ")");
-      painel.getRange(r,5).setFormula("=IFERROR(INDEX('" + a + "'!O3:O500;MATCH(LARGE('" + a + "'!D3:D500;" + rk + ");'" + a + "'!D3:D500;0));" + q + q + ")");
-      painel.getRange(r,6).setFormula("=IFERROR(INDEX('" + a + "'!Q3:Q500;MATCH(LARGE('" + a + "'!D3:D500;" + rk + ");'" + a + "'!D3:D500;0));" + q + q + ")");
+      painel.getRange(r,1).setFormula("=IFERROR(TEXT(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");" + q + "dd/mm/yyyy" + q + ");" + q + q + ")");
+      painel.getRange(r,2).setFormula("=IFERROR(INDEX('" + a + "'!C3:C" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0));" + q + q + ")");
+      painel.getRange(r,3).setFormula("=IFERROR(INDEX('" + a + "'!E3:E" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0));" + q + q + ")");
+      painel.getRange(r,4).setFormula("=IFERROR(TEXT(INDEX('" + a + "'!L3:L" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0));" + q + "0.00" + q + ")&" + q + " km" + q + ";" + q + q + ")");
+      painel.getRange(r,5).setFormula("=IFERROR(INDEX('" + a + "'!P3:P" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0));" + q + q + ")");
+      painel.getRange(r,6).setFormula("=IFERROR(IF(INDEX('" + a + "'!Q3:Q" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0))>0;ROUND(INDEX('" + a + "'!Q3:Q" + ativLast + ";MATCH(LARGE('" + a + "'!D3:D" + ativLast + ";" + rk + ");'" + a + "'!D3:D" + ativLast + ";0));0)&" + q + " bpm" + q + ";" + q + "--" + q + ");" + q + q + ")");
     }
     _log("SYSTEM","INFO","corrigirFormulasPainel","Formulas do PAINEL corrigidas","");
-    ui.alert("Formulas corrigidas!","As metricas do PAINEL foram atualizadas.",ui.ButtonSet.OK);
+    if (exibirAlerta) ui.alert("Fórmulas corrigidas!","As métricas do PAINEL foram atualizadas.",ui.ButtonSet.OK);
   } catch(e) {
     _log("SYSTEM","ERRO","corrigirFormulasPainel",e.message,"");
-    ui.alert("Erro", e.message, ui.ButtonSet.OK);
+    if (exibirAlerta) ui.alert("Erro", e.message, ui.ButtonSet.OK);
+    throw e;
   }
+}
+
+function corrigirFormulasGraficos(exibirAlerta) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  if (exibirAlerta === undefined) exibirAlerta = true;
+  var graf = ss.getSheetByName(H.SHEETS.GRAFICOS);
+  var ativ = ss.getSheetByName(H.SHEETS.ATIVIDADES);
+  var met = ss.getSheetByName(H.SHEETS.METRICAS);
+  if (!graf || !ativ) throw new Error('Abas GRÁFICOS ou ATIVIDADES não encontradas.');
+  var a = H.SHEETS.ATIVIDADES;
+  var m = H.SHEETS.METRICAS;
+  var lastA = Math.max(3, ativ.getLastRow());
+  var lastM = Math.max(3, met ? met.getLastRow() : 3);
+  var q = '"';
+  graf.getRange('B4').setFormula("=IFERROR(SUMIFS('" + a + "'!L3:L" + lastA + ";'" + a + "'!E3:E" + lastA + ";" + q + "Corrida" + q + ";'" + a + "'!D3:D" + lastA + ";" + q + ">=" + q + "&DATE(YEAR(TODAY());MONTH(TODAY());1);'" + a + "'!D3:D" + lastA + ";" + q + "<" + q + "&DATE(YEAR(TODAY());MONTH(TODAY())+1;1));0)");
+  graf.getRange('B5').setFormula("=COUNTIFS('" + a + "'!E3:E" + lastA + ";" + q + "Corrida" + q + ";'" + a + "'!D3:D" + lastA + ";" + q + ">=" + q + "&DATE(YEAR(TODAY());MONTH(TODAY());1);'" + a + "'!D3:D" + lastA + ";" + q + "<" + q + "&DATE(YEAR(TODAY());MONTH(TODAY())+1;1))");
+  graf.getRange('B6').setFormula("=IFERROR(TEXT(AVERAGEIFS('" + a + "'!O3:O" + lastA + ";'" + a + "'!E3:E" + lastA + ";" + q + "Corrida" + q + ";'" + a + "'!O3:O" + lastA + ";" + q + ">0" + q + ")/86400;" + q + "[mm]:ss" + q + ");" + q + "--" + q + ")");
+  graf.getRange('B7').setFormula("=IFERROR(ROUND(AVERAGEIFS('" + a + "'!Q3:Q" + lastA + ";'" + a + "'!E3:E" + lastA + ";" + q + "Corrida" + q + ";'" + a + "'!Q3:Q" + lastA + ";" + q + ">0" + q + ");0);" + q + "--" + q + ")");
+  if (met) graf.getRange('B8').setFormula("=IFERROR(ROUND(AVERAGE('" + m + "'!D3:D" + lastM + ");1);" + q + "--" + q + ")");
+  _log('SISTEMA', 'INFO', 'corrigirFormulasGraficos', 'Fórmulas de GRÁFICOS reparadas até a linha ' + lastA, '');
+  if (exibirAlerta) ui.alert('✅ Fórmulas de GRÁFICOS reparadas.');
+  return 5;
+}
+
+function repararFormulasOperacionais(exibirAlerta) {
+  if (exibirAlerta === undefined) exibirAlerta = true;
+  corrigirFormulasPainel(false);
+  corrigirFormulasGraficos(false);
+  if (exibirAlerta) SpreadsheetApp.getUi().alert(
+    '✅ Fórmulas reparadas',
+    'PAINEL e GRÁFICOS foram atualizados com o tamanho real das abas. Nenhuma fórmula foi apagada.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+  return true;
 }

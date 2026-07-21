@@ -45,7 +45,7 @@ function atualizarRankingSheet() {
     const data  = dados[i][H.ATIV.DATA - 1];
     const tipo  = String(dados[i][H.ATIV.TIPO      - 1] || '').trim();
     const km    = Number(dados[i][H.ATIV.DIST_KM   - 1]) || 0;
-    if (!athId || !(data instanceof Date)) continue;
+    if (!_isAthIdValido_(athId) || !(data instanceof Date)) continue;
 
     if (!mapa[athId]) mapa[athId] = { nome, km30: 0, treinos30: 0, kmTotal: 0, treinosTotal: 0, ultimoTreino: null };
 
@@ -640,7 +640,7 @@ function atualizarRankingExpandido() {
     const paceS = Number(row[H.ATIV.PACE_S  - 1]) || 0;
     const elev  = Number(row[H.ATIV.ELEV    - 1]) || 0;
     const pse   = Number(row[H.ATIV.PSE     - 1]) || 0;
-    if (!athId || !(data instanceof Date)) return;
+    if (!_isAthIdValido_(athId) || !(data instanceof Date)) return;
 
     if (!mapa[athId]) mapa[athId] = {
       nome, athId,
@@ -687,7 +687,7 @@ function atualizarRankingExpandido() {
   metDados.forEach(row => {
     const id  = String(row[H.MET.ATH_ID - 1] || '').trim();
     const vo2 = Number(row[H.MET.VO2    - 1]) || 0;
-    if (id && vo2 > 0) vo2Map[id] = vo2;
+    if (_isAthIdValido_(id) && vo2 > 0) vo2Map[id] = vo2;
   });
 
   // Converter set em número

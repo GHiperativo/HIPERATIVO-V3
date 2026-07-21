@@ -445,12 +445,18 @@ function enviarLinkStravaDesconectados() {
     const nome     = String(row[H.CAD.NOME - 1]      || '').trim();
     const email    = String(row[H.CAD.EMAIL - 1]     || '').trim();
     const stravaOk = String(row[H.CAD.STRAVA_OK - 1] || '').trim();
-    const status   = String(row[H.CAD.STATUS - 1]    || '').trim();
+    const status   = String(row[H.CAD.STATUS - 1]    || '').trim().toLowerCase();
 
     if (!_isAthIdValido_(athId))                 continue;
-    if (stravaOk === 'Sim')                      continue;
-    if (status === 'Inativo' || status === 'Cancelado') continue;
+    if (stravaOk.toLowerCase() === 'sim')        continue;
+    if (status === 'inativo' || status === 'cancelado') continue;
     if (!email || !email.includes('@'))          continue;
+
+    // O status visual pode estar atrasado. Um refresh_token válido em qualquer
+    // fonte de segurança significa que a conexão existe e nunca deve receber OAuth.
+    const tokenExistente = typeof _getTokenRow_ === 'function' ? _getTokenRow_(athId) : null;
+    if (tokenExistente && typeof _isRefreshTokenValido_ === 'function' &&
+        _isRefreshTokenValido_(tokenExistente.refreshToken)) continue;
 
     pendentes.push({ athId, nome, email });
   }

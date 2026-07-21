@@ -11,30 +11,21 @@ const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 const STRAVA_SCOPE = 'read,activity:read_all,profile:read_all';
 
-// — 1. GERAR LINK ÚNICO (cadastro + OAuth em um só link) ————————————————————————————
+// — 1. GERAR LINK SEGURO PARA ATLETAS JÁ CADASTRADOS ————————————————————————
 function gerarLinkStrava() {
   const ui = SpreadsheetApp.getUi();
-  const r = ui.prompt(
-    '🔗 Conectar atleta ao Strava',
-    'Digite o ID do atleta (ex: ATH_001):',
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  const athId = (r.getResponseText() || '').trim().toUpperCase();
-  if (!athId) { ui.alert('⚠️ ID inválido. Operação cancelada.'); return; }
-
   try {
-    const url = _gerarUrlCadastro(athId);
+    const url = _gerarUrlConexaoStrava();
     ui.alert(
-      '✅ Link gerado — envie para o atleta',
-      'Cole este link no navegador do atleta:\n\n' + url +
-      '\n\nO atleta vai:\n1. Preencher o cadastro completo\n2. Clicar em Conectar Strava\n3. Autorizar o app\n4. Pronto! Dados salvos automaticamente.',
+      '✅ Link geral de conexão Strava',
+      'Envie este link somente para atletas já cadastrados:\n\n' + url +
+      '\n\nO atleta confirma código e e-mail. Se já existir refresh token, o sistema preserva a conexão e não inicia nova autorização.',
       ui.ButtonSet.OK
     );
-    _log(athId, 'INFO', 'gerarLinkStrava', 'Link único de cadastro gerado', '');
+    _log('SISTEMA', 'INFO', 'gerarLinkStrava', 'Link geral seguro de conexão exibido', '');
   } catch (e) {
     ui.alert('❌ Erro ao gerar link', e.message, ui.ButtonSet.OK);
-    _log(athId, 'ERRO', 'gerarLinkStrava', e.message, e.stack || '');
+    _log('SISTEMA', 'ERRO', 'gerarLinkStrava', e.message, e.stack || '');
   }
 }
 
@@ -330,10 +321,18 @@ function importarAtividades() {
   try {
     let msg;
     if (athId) {
-      const n = _importarAtividadesAtleta(athId, 3);
-      msg = '✅ ' + n + ' atividades importadas para ' + athId;
+      const props = PropertiesService.getScriptProperties();
+      props.setProperty('Q_HIST_' + athId, '0');
+      props.deleteProperty('Q_HIST_DONE_' + athId);
+      const lote = _importarHistoricoPaginado(athId, 0);
+      if (lote.concluido) props.deleteProperty('Q_HIST_' + athId);
+      else props.setProperty('Q_HIST_' + athId, String(lote.ultimaPagina));
+      msg = '✅ ' + lote.novas + ' novas atividades importadas para ' + athId +
+        (lote.concluido ? '. Histórico concluído.' : '. O restante continuará pela fila automática.');
     } else {
-      msg = _importarTodosAtletas();
+      const ag = agendarHistoricoCompletoTodos(true);
+      processarFilaStrava();
+      msg = '✅ Histórico completo agendado para ' + ag.total + ' atletas. A fila continuará até a última página.';
     }
     ui.alert('📊 Resultado', msg, ui.ButtonSet.OK);
   } catch (e) {
@@ -1134,7 +1133,7 @@ p{color:#ffcdd2;font-size:.88rem;line-height:1.7}
 // ══════════════════════════════════════════════════════════════════════════════
 // ── ENVIAR LINK STRAVA PARA ATLETAS PENDENTES (email + WhatsApp) ─────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function enviarLinkStravaDesconectados() {
+function _enviarLinkStravaDesconectadosLegado_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const cad = ss.getSheetByName(H.SHEETS.CADASTRO);
   const ui = SpreadsheetApp.getUi();
@@ -1566,12 +1565,21 @@ function _getTokenRow_(athId) {
   // renovação. Sempre escolhe a cópia com expires_at mais recente e preserva o
   // rowIdx da planilha para que a próxima persistência reconcilie as fontes.
   const props = PropertiesService.getScriptProperties();
-  const propRefresh = String(props.getProperty('RT_' + athId) || '').trim();
-  const propExpires = Number(props.getProperty('EX_' + athId) || 0);
+  const propRefreshNovo = String(props.getProperty('RT_' + athId) || '').trim();
+  const propExpiresNovo = Number(props.getProperty('EX_' + athId) || 0);
+  const propRefreshLegado = String(props.getProperty('TOK_REFRESH_' + athId) || '').trim();
+  const propExpiresLegado = Number(props.getProperty('TOK_EXPIRES_' + athId) || 0);
+  const usarLegado = _isRefreshTokenValido_(propRefreshLegado) &&
+    _expiresAtSeg_(propExpiresLegado) > _expiresAtSeg_(propExpiresNovo);
+  const propRefresh = usarLegado ? propRefreshLegado : propRefreshNovo;
+  const propExpires = usarLegado ? propExpiresLegado : propExpiresNovo;
+  const propAccess = usarLegado
+    ? String(props.getProperty('TOK_ACCESS_' + athId) || '').trim()
+    : String(props.getProperty('AT_' + athId) || '').trim();
   if (_isRefreshTokenValido_(propRefresh) &&
       (!encontrado || _expiresAtSeg_(propExpires) >= _expiresAtSeg_(encontrado.expiresAt))) {
     encontrado = Object.assign({}, encontrado || { rowIdx: -1 }, {
-      accessToken: String(props.getProperty('AT_' + athId) || '').trim(),
+      accessToken: propAccess,
       refreshToken: propRefresh,
       expiresAt: propExpires,
       scope: encontrado ? encontrado.scope : '',
@@ -1634,8 +1642,16 @@ function _salvarTokensPlanilha(athId, tokenData) {
     return false;
   }
 
-  const agora = new Date();
   const existing = _getTokenRow_(athId);
+  const refreshSeguro = _isRefreshTokenValido_(tokenData.refreshToken)
+    ? String(tokenData.refreshToken).trim()
+    : (existing && _isRefreshTokenValido_(existing.refreshToken) ? existing.refreshToken : '');
+  if (!_isRefreshTokenValido_(refreshSeguro)) {
+    _logEvento_('ERRO', '_salvarTokensPlanilha', athId,
+      'Gravação cancelada para não substituir refresh_token por valor vazio', '');
+    return false;
+  }
+  const agora = new Date();
   const execId = (existing && existing.execId) ||
     ('TOK_' + Utilities.getUuid().substring(0, 8).toUpperCase());
   const novaLinha = [
@@ -1643,7 +1659,7 @@ function _salvarTokensPlanilha(athId, tokenData) {
     athId,
     tokenData.nome || '',
     tokenData.accessToken,
-    tokenData.refreshToken || '',
+    refreshSeguro,
     _expiresAtSeg_(tokenData.expiresAt),
     tokenData.scope || '',
     tokenData.stravaId || '',
