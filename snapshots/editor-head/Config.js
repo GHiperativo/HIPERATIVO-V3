@@ -162,6 +162,30 @@ const H = {
   },
 };
 
+// Retorna a opção declarada pelo atleta no CADASTRO (Sim/Não/etc.).
+// A ausência de cadastro mantém o comportamento legado; somente "Não" exclui
+// explicitamente o atleta das automações Strava.
+function _mapaUsoStravaCadastro_() {
+  const mapa = {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss && ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!sh || sh.getLastRow() < 4) return mapa;
+
+  const dados = sh.getRange(4, 1, sh.getLastRow() - 3, H.CAD.STRAVA_OK).getValues();
+  dados.forEach(function(row) {
+    const athId = String(row[H.CAD.ID - 1] || '').trim();
+    if (!_isAthIdValido_(athId)) return;
+    mapa[athId] = String(row[H.CAD.STRAVA_OK - 1] || '').trim()
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  });
+  return mapa;
+}
+
+function _cadastroNaoUsaStrava_(athId, mapa) {
+  const uso = mapa || _mapaUsoStravaCadastro_();
+  return String(uso[String(athId || '').trim()] || '') === 'nao';
+}
+
 // ── MENU PRINCIPAL ───────────────────────────────────────────────────────────
 
 // ── MENU PRINCIPAL ───────────────────────────────────────────────────────────

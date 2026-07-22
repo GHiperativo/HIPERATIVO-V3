@@ -167,6 +167,8 @@ function atualizarStravaStatusSheet() {
   const cadDados = shCad ? shCad.getDataRange().getValues() : [];
   const atvDados = shAtiv ? shAtiv.getDataRange().getValues() : [];
   const agora    = Math.floor(Date.now() / 1000);
+  const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
+    ? _mapaUsoStravaCadastro_() : {};
 
   const linhas = [];
   for (let i = 1; i < tokDados.length; i++) {
@@ -178,11 +180,14 @@ function atualizarStravaStatusSheet() {
     if (!athId) continue;
 
     // Data de expiração legível
-    const expDate = expires ? Utilities.formatDate(new Date(expires * 1000), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') : '--';
+    const naoUsaStrava = typeof _cadastroNaoUsaStrava_ === 'function'
+      && _cadastroNaoUsaStrava_(athId, usoStrava);
+    let expDate = expires ? Utilities.formatDate(new Date(expires * 1000), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') : '--';
 
     // Status do token
     let statusLabel = tokenStat || 'Desconhecido';
-    if (expires && expires > agora + 600) statusLabel = 'Ativo';
+    if (naoUsaStrava) statusLabel = 'Não utiliza';
+    else if (expires && expires > agora + 600) statusLabel = 'Ativo';
     else if (expires && expires <= agora) statusLabel = 'Expirado';
 
     // Último treino do atleta
@@ -203,7 +208,11 @@ function atualizarStravaStatusSheet() {
 
     // Observação — diferencia "sem vínculo mas tem atividades" de "nunca conectou"
     let obs = '';
-    if (!stravaId && qtdAtiv > 0) obs = 'Atividades importadas — Strava ID ausente no token';
+    if (naoUsaStrava) {
+      expDate = '--';
+      obs = 'Atleta não utiliza Strava';
+    }
+    else if (!stravaId && qtdAtiv > 0) obs = 'Atividades importadas — Strava ID ausente no token';
     else if (!stravaId)            obs = 'Strava não vinculado';
     else if (statusLabel === 'Expirado') obs = 'Token expirado — atleta deve reconectar';
     else if (qtdAtiv === 0)        obs = 'Sem atividades importadas ainda';
@@ -227,6 +236,7 @@ function atualizarStravaStatusSheet() {
     const status = linhas[i][4];
     let statusBg = bg;
     if (status === 'Ativo')    statusBg = corVerde;
+    else if (status === 'Não utiliza') statusBg = '#EEEEEE';
     else if (status === 'Expirado') statusBg = corVerm;
     else statusBg = corAmar;
     shSt.getRange(row, 5).setBackground(statusBg).setFontWeight('bold');

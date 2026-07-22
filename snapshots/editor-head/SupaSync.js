@@ -153,10 +153,20 @@ function monitorarStravaOk() {
     const confirmados = [];
     const recuperados = [];
     const temporarios = [];
+    const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
+      ? _mapaUsoStravaCadastro_() : {};
 
     candidatos.forEach(function(a) {
       const athId = String(a.ath_id || '').trim();
       if (typeof _isAthIdValido_ === 'function' && !_isAthIdValido_(athId)) return;
+
+      if (typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava)) {
+        supaAtualizarStravaOk(athId, 'Não utiliza');
+        recuperados.push(a);
+        _log(athId, 'INFO', 'monitorarStravaOk',
+          'Atleta excluído do monitor: cadastro informa que não utiliza Strava', '');
+        return;
+      }
 
       try {
         const token = typeof _getTokenRow_ === 'function' ? _getTokenRow_(athId) : null;
@@ -314,7 +324,7 @@ function renovacaoProativaTokens() {
   }
 
   try {
-    const url = _supaUrl_() + '/rest/v1/tokens_strava?select=ath_id,nome,refresh_token,expires_at&order=ath_id.asc';
+    const url = _supaUrl_() + '/rest/v1/tokens_strava?select=ath_id,nome,refresh_token,expires_at,status&order=ath_id.asc';
     const resp = UrlFetchApp.fetch(url, { method: 'get', headers: _supaHeaders_(), muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) {
       Logger.log('ERRO Supabase: ' + resp.getResponseCode()); return;
@@ -325,9 +335,17 @@ function renovacaoProativaTokens() {
     }
 
     const agora = Math.floor(Date.now() / 1000);
-    let renovados = 0, validos = 0, erros = 0;
+    const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
+      ? _mapaUsoStravaCadastro_() : {};
+    let renovados = 0, validos = 0, erros = 0, ignorados = 0;
 
     tokens.forEach(function(t) {
+      const statusToken = String(t.status || '').trim().toLowerCase();
+      if (statusToken === 'inativo' ||
+          (typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(t.ath_id, usoStrava))) {
+        ignorados++;
+        return;
+      }
       if (!t.refresh_token) { erros++; return; }
       if (t.expires_at && (t.expires_at - agora) > 10800) { validos++; return; }
 
@@ -385,7 +403,8 @@ function renovacaoProativaTokens() {
       }
     });
 
-    Logger.log('Renovação concluída — renovados: ' + renovados + ' | válidos: ' + validos + ' | erros: ' + erros);
+    Logger.log('Renovação concluída — renovados: ' + renovados + ' | válidos: ' + validos
+      + ' | ignorados: ' + ignorados + ' | erros: ' + erros);
   } catch (e) {
     Logger.log('ERRO renovacaoProativaTokens: ' + e.message);
   }
@@ -445,10 +464,11 @@ function atualizarStatusStravaEmCadastro() {
 
   // ── Processar atletas (linha 4 em diante) ──
   const idData = wsCad.getRange(4, idColIdx + 1, lastRow - 3, 1).getValues();
+  const usoData = wsCad.getRange(4, H.CAD.STRAVA_OK, lastRow - 3, 1).getValues();
   const updates = [];
   const colors  = [];
 
-  idData.forEach(function(row) {
+  idData.forEach(function(row, idx) {
     const athId = String(row[0]).trim();
 
     // Pular linhas vazias ou de cabeçalho duplicado (bug conhecido no sheet)
@@ -462,6 +482,14 @@ function atualizarStatusStravaEmCadastro() {
     const rt = props.getProperty('RT_' + athId);
 
     let statusVal, bg, fg;
+
+    const usoDeclarado = String(usoData[idx][0] || '').trim()
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (usoDeclarado === 'nao') {
+      updates.push(['Não']);
+      colors.push([{ bg: '#eeeeee', fg: '#666666' }]);
+      return;
+    }
 
     if (rt && rt.length > 10) {
       statusVal = '✅ Ativo';
@@ -575,6 +603,7 @@ function enviarLinkStravaDesconectados() {
 
     if (!_isAthIdValido_(athId))                 continue;
     if (stravaOk.toLowerCase() === 'sim')        continue;
+    if (stravaOk.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'nao') continue;
     if (status === 'inativo' || status === 'cancelado') continue;
     if (!email || !email.includes('@'))          continue;
 

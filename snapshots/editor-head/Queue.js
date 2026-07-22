@@ -49,11 +49,14 @@ function processarFilaStrava() {
   if (!shTok) return;
 
     const tokDados = shTok.getDataRange().getValues();
+    const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
+      ? _mapaUsoStravaCadastro_() : {};
     const idsUnicos = new Set();
     for (let i = 1; i < tokDados.length; i++) {
       const athId  = String(tokDados[i][H.TOK.ATH_ID - 1] || '').trim();
       const status = String(tokDados[i][H.TOK.STATUS  - 1] || '').trim().toLowerCase();
       if (!_isAthIdValido_(athId) || status === 'inativo' || status === 'pendente') continue;
+      if (typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava)) continue;
       idsUnicos.add(athId);
     }
     const atletasAtivos = Array.from(idsUnicos);
