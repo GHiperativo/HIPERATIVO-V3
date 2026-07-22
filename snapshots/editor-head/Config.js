@@ -18,6 +18,7 @@ const H = {
     ERROS:     '🔴 ERROS',
     TOKENS:    '🔐 TOKENS',
     CONFIG:    '⚙️ CONFIG',
+    WHATSAPP_STRAVA: '📲 WHATSAPP STRAVA',
   },
 
   // ── Colunas da aba CADASTRO (1-indexed) — v3.2 expandido ──────────────────
@@ -205,6 +206,8 @@ function onOpen() {
       .addItem('🔍 Verificar status REAL Strava (via API)', 'verificarStatusRealStrava')
       .addItem('📤 Enviar link Strava para pendentes', 'enviarLinkStravaDesconectados')
       .addItem('📲 Gerar mensagem WhatsApp (link Strava)', 'gerarMensagemWhatsAppStrava')
+      .addItem('📋 Abrir fila WhatsApp dos cadastros', 'abrirFilaWhatsAppStrava')
+      .addItem('🔄 Atualizar fila WhatsApp agora', 'sincronizarFilaWhatsAppCadastros')
       .addItem('🔗 Gerar links reconeção (tokens inválidos)', 'gerarLinksReconexaoTodos')
       .addItem('👤 Importar perfil do atleta', 'importarPerfilAtleta')
       .addSeparator()
@@ -234,6 +237,8 @@ function onOpen() {
       .addItem('📋 Copiar link de cadastro', 'gerarLinkCadastro')
       .addSeparator()
       .addItem('📤 Enviar link Strava (email + WhatsApp) para pendentes', 'enviarLinkStravaDesconectados')
+      .addItem('📋 Fila WhatsApp pronta para copiar', 'abrirFilaWhatsAppStrava')
+      .addItem('⏱️ Ativar fila automática (15 min)', 'instalarAcionadorFilaWhatsApp')
       .addSeparator()
       .addItem('📲 Configurar WhatsApp API (Z-API / Evolution)', 'configurarWhatsApp')
   );

@@ -168,6 +168,17 @@ function salvarCadastroAjax(p) {
     }
 
     const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const usaStrava = String(p.usa_strava || 'Sim').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') !== 'nao';
+    const atribuicao = [
+      p.origem || '',
+      p.utm_source ? 'utm_source=' + p.utm_source : '',
+      p.utm_medium ? 'utm_medium=' + p.utm_medium : '',
+      p.utm_campaign ? 'utm_campaign=' + p.utm_campaign : '',
+      p.utm_content ? 'utm_content=' + p.utm_content : '',
+      p.ref ? 'ref=' + p.ref : ''
+    ].filter(String).join(' | ');
+    const origemFinal = atribuicao || 'Formulário Web';
     // wa.me link vem normalizado do formulário; fallback: derivar do número
     const waLink = p.waLink || (p.whats ? 'https://wa.me/' + String(p.whats).replace(/\D/g, '') : '');
     const obsBase = p.obs || '';
@@ -224,6 +235,33 @@ function salvarCadastroAjax(p) {
     }
 
     _log(athId, 'INFO', 'salvarCadastroAjax', 'Cadastro salvo: ' + (p.nome || 'N/A'), '');
+
+    // Garante a linha-pai antes de qualquer token chegar ao Supabase.
+    // Se o Supabase estiver indisponível, o cadastro e os tokens locais seguem preservados.
+    try {
+      if (typeof supaGarantirAtleta === 'function') supaGarantirAtleta(athId);
+    } catch (eSupaCadastro) {
+      _log(athId, 'AVISO', 'salvarCadastroAjax',
+        'Cadastro salvo; sincronização imediata com Supabase ficou pendente', eSupaCadastro.message);
+    }
+
+    // Cria/atualiza a mensagem operacional para copiar e colar no WhatsApp.
+    try {
+      if (typeof registrarFilaWhatsAppCadastro_ === 'function') {
+        registrarFilaWhatsAppCadastro_({
+          athId: athId,
+          nome: p.nome || '',
+          email: p.email || '',
+          whats: p.whats || '',
+          dataCadastro: agora,
+          stravaOk: usaStrava ? 'Pendente' : 'Não',
+          stravaId: ''
+        });
+      }
+    } catch (eFila) {
+      _log(athId, 'AVISO', 'salvarCadastroAjax',
+        'Cadastro salvo; fila WhatsApp será reparada pelo acionador automático', eFila.message);
+    }
 
     // Gerar URL OAuth para retornar ao frontend (conexão Strava inline, sem depender de email)
     let oauthUrl = '';
@@ -637,6 +675,20 @@ function _atualizarPerfilNoCadastro(athId, perfil) {
 // ── 9. TRIGGER E HELPERS ──────────────────────────────────────────────────────
 function triggerImportacaoAutomatica() {
   _log('SISTEMA', 'INFO', 'triggerImportacaoAutomatica', 'Iniciando ciclo automático...', '');
+
+  // 0. Tarefas rápidas e críticas de novos cadastros primeiro. Assim elas
+  // concluem mesmo quando os cálculos de métricas/rankings levam mais tempo.
+  try {
+    if (typeof sincronizarCadastrosParaSupabaseSeguro === 'function') {
+      sincronizarCadastrosParaSupabaseSeguro();
+    }
+    if (typeof sincronizarFilaWhatsAppCadastros === 'function') {
+      sincronizarFilaWhatsAppCadastros();
+    }
+  } catch (e) {
+    _log('SISTEMA', 'AVISO', 'triggerImportacaoAutomatica',
+      'Pré-sincronização de cadastros: ' + e.message, '');
+  }
 
   // 1. Processar fila inteligente com rate-limiting (Queue.gs)
   try {
@@ -1643,6 +1695,13 @@ function _expiresAtSeg_(valor) {
  * @param {object} tokenData  { accessToken, refreshToken, expiresAt, scope, stravaId, nome }
  */
 function _salvarTokensPlanilha(athId, tokenData) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    _logEvento_('AVISO', '_salvarTokensPlanilha', athId,
+      'Outra gravação de token está em andamento; preservando cópias existentes', '');
+    return false;
+  }
+  try {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const aba = ss.getSheetByName(PATCH_ABAS_.TOKENS);
   if (!aba) {
@@ -1691,6 +1750,9 @@ function _salvarTokensPlanilha(athId, tokenData) {
     console.log('[PATCH] _salvarTokensPlanilha: INSERT → ' + athId);
   }
   return true;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 
@@ -1769,6 +1831,7 @@ function persistirCredenciaisStrava(athId, tokenData, origem) {
   // ── 2. Supabase tokens_strava ────────────────────────
   if (typeof supaUpsertToken === 'function') {
     try {
+      if (typeof supaGarantirAtleta === 'function') supaGarantirAtleta(athId);
       supabaseSalvo = supaUpsertToken(
         athId,
         tokenData.nome || '',

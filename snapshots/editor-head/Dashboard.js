@@ -170,14 +170,26 @@ function atualizarStravaStatusSheet() {
   const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
     ? _mapaUsoStravaCadastro_() : {};
 
-  const linhas = [];
+  // OAuths simultâneos podem ter deixado linhas históricas duplicadas na aba
+  // TOKENS. O painel usa somente a cópia mais nova por ATH_ID, sem apagar nada.
+  const tokenPorAtleta = new Map();
   for (let i = 1; i < tokDados.length; i++) {
     const athId     = String(tokDados[i][H.TOK.ATH_ID   - 1] || '').trim();
-    const nome      = String(tokDados[i][H.TOK.NOME      - 1] || '').trim();
-    const stravaId  = String(tokDados[i][H.TOK.STRAVA_ID - 1] || '').trim();
     const expires   = Number(tokDados[i][H.TOK.EXPIRES   - 1]) || 0;
-    const tokenStat = String(tokDados[i][H.TOK.STATUS    - 1] || '').trim();
     if (!athId) continue;
+    const atual = tokenPorAtleta.get(athId);
+    if (!atual || expires > atual.expires || (expires === atual.expires && i > atual.indice)) {
+      tokenPorAtleta.set(athId, { linha: tokDados[i], expires: expires, indice: i });
+    }
+  }
+
+  const linhas = [];
+  tokenPorAtleta.forEach(function(item, athId) {
+    const tok = item.linha;
+    const nome      = String(tok[H.TOK.NOME      - 1] || '').trim();
+    const stravaId  = String(tok[H.TOK.STRAVA_ID - 1] || '').trim();
+    const expires   = Number(tok[H.TOK.EXPIRES   - 1]) || 0;
+    const tokenStat = String(tok[H.TOK.STATUS    - 1] || '').trim();
 
     // Data de expiração legível
     const naoUsaStrava = typeof _cadastroNaoUsaStrava_ === 'function'
@@ -218,7 +230,7 @@ function atualizarStravaStatusSheet() {
     else if (qtdAtiv === 0)        obs = 'Sem atividades importadas ainda';
 
     linhas.push([nome || athId, athId, stravaId, expDate, statusLabel, ultimoTreino, qtdAtiv, obs]);
-  }
+  });
 
   if (linhas.length === 0) {
     shSt.getRange(4, 1).setValue('Nenhum atleta conectado ao Strava ainda.');

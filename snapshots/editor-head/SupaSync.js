@@ -38,6 +38,85 @@ function _supaHeaders_() {
 
 function _supaConfigurado_() { return !!_supaKey_(); }
 
+// ─── GARANTIR CADASTRO-PAI ANTES DO TOKEN ──────────────────────────────────
+
+function _dadosCadastroParaSupabase_(athId) {
+  const ss = SpreadsheetApp.openById(_getSsId());
+  const sh = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!sh) return null;
+  const dados = sh.getDataRange().getValues();
+  for (let i = 3; i < dados.length; i++) {
+    const id = String(dados[i][H.CAD.ID - 1] || '').trim().toUpperCase();
+    if (id !== athId) continue;
+    const uso = String(dados[i][H.CAD.STRAVA_OK - 1] || '').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let stravaOk = 'Pendente';
+    if (uso === 'nao' || uso === 'nao utiliza') stravaOk = 'Não utiliza';
+    else if (uso === 'sim' || uso === 'conectado' || uso === 'ativo') stravaOk = 'Conectado';
+    return {
+      ath_id: athId,
+      nome: String(dados[i][H.CAD.NOME - 1] || '').trim() || athId,
+      email: String(dados[i][H.CAD.EMAIL - 1] || '').trim(),
+      whats: String(dados[i][H.CAD.WHATS - 1] || '').trim(),
+      strava_ok: stravaOk,
+      strava_id: String(dados[i][H.CAD.STRAVA_ID - 1] || '').trim() || null,
+      status: String(dados[i][H.CAD.STATUS - 1] || '').trim() || 'Ativo',
+      updated_at: new Date().toISOString()
+    };
+  }
+  return null;
+}
+
+function supaGarantirAtleta(athId) {
+  if (!_supaConfigurado_() || !_isAthIdValido_(athId)) return false;
+  try {
+    const consulta = UrlFetchApp.fetch(_supaUrl_() + '/rest/v1/atletas?ath_id=eq.' +
+      encodeURIComponent(athId) + '&select=ath_id&limit=1', {
+      method: 'get', headers: _supaHeaders_(), muteHttpExceptions: true
+    });
+    if (consulta.getResponseCode() !== 200) return false;
+    const existentes = JSON.parse(consulta.getContentText() || '[]');
+    if (existentes.length > 0) return true;
+
+    const payload = _dadosCadastroParaSupabase_(athId);
+    if (!payload) return false;
+    const resp = UrlFetchApp.fetch(_supaUrl_() + '/rest/v1/atletas?on_conflict=ath_id', {
+      method: 'post',
+      headers: Object.assign({}, _supaHeaders_(), {
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      }),
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    const ok = resp.getResponseCode() < 300;
+    if (ok) _log(athId, 'INFO', 'supaGarantirAtleta', 'Cadastro-pai criado no Supabase', '');
+    else _log(athId, 'AVISO', 'supaGarantirAtleta', 'Supabase retornou ' + resp.getResponseCode(), '');
+    return ok;
+  } catch (e) {
+    _log(athId, 'AVISO', 'supaGarantirAtleta', 'Falha não crítica: ' + e.message, '');
+    return false;
+  }
+}
+
+function sincronizarCadastrosParaSupabaseSeguro() {
+  if (!_supaConfigurado_()) return { ok: 0, pendentes: 0 };
+  const ss = SpreadsheetApp.openById(_getSsId());
+  const sh = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!sh) return { ok: 0, pendentes: 0 };
+  const dados = sh.getDataRange().getValues();
+  let ok = 0;
+  let pendentes = 0;
+  for (let i = 3; i < dados.length; i++) {
+    const athId = String(dados[i][H.CAD.ID - 1] || '').trim().toUpperCase();
+    if (!_isAthIdValido_(athId)) continue;
+    if (supaGarantirAtleta(athId)) ok++;
+    else pendentes++;
+  }
+  if (pendentes > 0) _log('SISTEMA', 'AVISO', 'sincronizarCadastrosParaSupabaseSeguro',
+    pendentes + ' cadastro(s) ainda pendentes no Supabase', '');
+  return { ok: ok, pendentes: pendentes };
+}
+
 // ─── UPSERT TOKEN NO SUPABASE ────────────────────────────────────────────────
 
 function supaUpsertToken(athId, nome, accessToken, refreshToken, expiresAt) {
@@ -49,6 +128,11 @@ function supaUpsertToken(athId, nome, accessToken, refreshToken, expiresAt) {
     return false;
   }
   try {
+    if (!supaGarantirAtleta(athId)) {
+      _log(athId, 'AVISO', 'supaUpsertToken',
+        'Backup adiado: cadastro-pai ainda não confirmado no Supabase', '');
+      return false;
+    }
     const expNumero = Number(expiresAt) || 0;
     const expSegundos = expNumero > 1e12 ? Math.floor(expNumero / 1000) : Math.floor(expNumero);
     const payload = JSON.stringify({

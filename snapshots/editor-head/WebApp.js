@@ -5,6 +5,18 @@
  * ==========================================================
  */
 
+const HIPERATIVO_WEBAPP_URL_OFICIAL_ =
+  'https://script.google.com/macros/s/AKfycbyNrmCjUxRYjUVjKMBPK7n_qFMknas2yfEXVciAMAIcOO1dr-9zH5haSuiGxMlIIO4Fqg/exec';
+
+function corrigirUrlWebAppOficial() {
+  PropertiesService.getScriptProperties().setProperty(
+    'WEBAPP_URL', HIPERATIVO_WEBAPP_URL_OFICIAL_
+  );
+  _log('SISTEMA', 'INFO', 'corrigirUrlWebAppOficial',
+    'WEBAPP_URL alinhada à implantação pública oficial', '');
+  return HIPERATIVO_WEBAPP_URL_OFICIAL_;
+}
+
 // ── doGet: roteador principal ──────────────────────────────
 function doGet(e) {
   const p = (e && e.parameter) ? e.parameter : {};
@@ -17,7 +29,7 @@ function doGet(e) {
   // Link geral para atletas já cadastrados conectarem o Strava.
   // Exige ATH_ID + email e nunca sobrescreve um refresh token existente.
   if (p.conectar === 'true') {
-    return _paginaConexaoStravaGeral();
+    return _paginaConexaoStravaGeral(p);
   }
 
   // Página individual do atleta (?atleta=ATH_001)
@@ -56,7 +68,10 @@ function doGet(e) {
 }
 
 // ── Conexão Strava para atleta já cadastrado ────────────────────────────────
-function _paginaConexaoStravaGeral() {
+function _paginaConexaoStravaGeral(p) {
+  p = p || {};
+  const athInicial = String(p.athId || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  const emailInicial = String(p.email || '').trim().replace(/["'<>]/g, '');
   const html = `<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <base target="_top"><title>Conectar Strava — Grupo Hiperativo</title>
@@ -78,9 +93,9 @@ function _paginaConexaoStravaGeral() {
     <p>Use os mesmos dados do seu cadastro. A validação evita vincular a conta à pessoa errada.</p>
     <form id="form">
       <label for="athId">Código do atleta</label>
-      <input id="athId" name="athId" placeholder="Ex.: ATH123456" required autocomplete="off">
+      <input id="athId" name="athId" value="${athInicial}" placeholder="Ex.: ATH123456" required autocomplete="off">
       <label for="email">E-mail cadastrado</label>
-      <input id="email" name="email" type="email" placeholder="seu@email.com" required autocomplete="email">
+      <input id="email" name="email" type="email" value="${emailInicial}" placeholder="seu@email.com" required autocomplete="email">
       <button id="btn" type="submit">CONECTAR COM STRAVA</button>
     </form>
     <div id="msg"></div>
