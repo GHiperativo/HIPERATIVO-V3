@@ -128,12 +128,15 @@ function supaAtualizarStravaOk(athId, status) {
 
 // ─── MONITORAMENTO DIÁRIO DE CONEXÃO STRAVA ──────────────────────────────────
 // Instalado via instalarAcionadorMonitor() — roda 1x por dia às 8h.
-// Envia email se qualquer atleta estiver com Strava quebrado.
+// Envia email apenas quando a reconexão for realmente necessária.
+// Um status antigo no Supabase nunca é suficiente para pedir novo OAuth.
 
 function monitorarStravaOk() {
   if (!_supaConfigurado_()) return;
   try {
-    // Buscar atletas com problema
+    // O Supabase fornece apenas a lista inicial de candidatos. A decisão final
+    // é feita com as três fontes de token: planilha, ScriptProperties e
+    // Supabase (via _getTokenRow_). Isso evita alertas por status atrasado.
     const url = _supaUrl_() + '/rest/v1/atletas'
       + '?strava_ok=in.(Reconectar,Erro)'
       + '&select=ath_id,nome,strava_ok,updated_at'
@@ -141,26 +144,97 @@ function monitorarStravaOk() {
     const resp = UrlFetchApp.fetch(url, { method: 'get', headers: _supaHeaders_(), muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) return;
 
-    const problemas = JSON.parse(resp.getContentText());
-    if (!problemas || problemas.length === 0) return; // tudo ok, sem email
+    const candidatos = JSON.parse(resp.getContentText());
+    if (!candidatos || candidatos.length === 0) {
+      _limparEstadoAlertaStrava_();
+      return;
+    }
+
+    const confirmados = [];
+    const recuperados = [];
+    const temporarios = [];
+
+    candidatos.forEach(function(a) {
+      const athId = String(a.ath_id || '').trim();
+      if (typeof _isAthIdValido_ === 'function' && !_isAthIdValido_(athId)) return;
+
+      try {
+        const token = typeof _getTokenRow_ === 'function' ? _getTokenRow_(athId) : null;
+        const temRefresh = token && typeof _isRefreshTokenValido_ === 'function'
+          ? _isRefreshTokenValido_(token.refreshToken)
+          : !!(token && token.refreshToken && String(token.refreshToken).length >= 20);
+
+        // Sem refresh_token em nenhuma fonte durável: única situação em que o
+        // monitor confirma a necessidade de um novo OAuth.
+        if (!temRefresh) {
+          confirmados.push(a);
+          _log(athId, 'AVISO', 'monitorarStravaOk',
+            'Reconexão confirmada: refresh_token ausente nas fontes de segurança', '');
+          return;
+        }
+
+        // Havendo refresh_token, tenta obter/renovar o access_token pelo fluxo
+        // central. Esse fluxo preserva o token anterior e grava nas três fontes.
+        const access = typeof _getValidAccessToken === 'function'
+          ? _getValidAccessToken(athId)
+          : String(token.accessToken || '');
+
+        if (access) {
+          if (typeof _atualizarStatusCadastro === 'function') {
+            _atualizarStatusCadastro(athId, true, token.stravaId || '');
+          }
+          supaAtualizarStravaOk(athId, 'Conectado');
+          recuperados.push(a);
+          _log(athId, 'INFO', 'monitorarStravaOk',
+            'Alerta antigo reconciliado; refresh_token preservado e conexão ativa', '');
+        } else {
+          // Falha de rede, limite ou indisponibilidade não autoriza pedir OAuth.
+          temporarios.push(a);
+          _log(athId, 'AVISO', 'monitorarStravaOk',
+            'Refresh disponível, mas access_token temporariamente indisponível; sem pedir reconexão', '');
+        }
+      } catch (e) {
+        temporarios.push(a);
+        _log(athId, 'AVISO', 'monitorarStravaOk',
+          'Falha temporária ao validar token; status preservado', e.message);
+      }
+    });
+
+    Logger.log('Monitor: candidatos=' + candidatos.length
+      + ' | recuperados=' + recuperados.length
+      + ' | temporários=' + temporarios.length
+      + ' | reconexões confirmadas=' + confirmados.length);
+
+    if (confirmados.length === 0) {
+      _limparEstadoAlertaStrava_();
+      return;
+    }
+
+    if (!_deveEnviarAlertaStrava_(confirmados)) {
+      Logger.log('Monitor: alerta idêntico suprimido para evitar email repetido.');
+      return;
+    }
 
     // Montar email de alerta
     const adminEmail = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
                        || 'contato@ghiperativo.com.br';
 
-    const linhas = problemas.map(a =>
-      '• ' + a.nome + ' (' + a.ath_id + ') — Status: ' + a.strava_ok
+    const linhas = confirmados.map(a =>
+      '• ' + a.nome + ' (' + a.ath_id + ') — refresh_token não encontrado'
     ).join('\n');
 
     const corpo = [
-      '⚠️ ALERTA HIPERATIVO V3 — Strava desconectado',
+      '⚠️ ALERTA HIPERATIVO V3 — reconexão confirmada',
       '',
-      problemas.length + ' atleta(s) com conexão Strava quebrada:',
+      confirmados.length + ' atleta(s) sem refresh_token em nenhuma fonte de segurança:',
       '',
       linhas,
       '',
-      'Esses atletas não estão recebendo dados do Strava.',
-      'Acesse o sistema e peça para reconectarem via link OAuth.',
+      'O monitor verificou Planilha, armazenamento interno do Apps Script e Supabase.',
+      'Somente estes casos precisam de um novo link OAuth.',
+      temporarios.length
+        ? temporarios.length + ' falha(s) temporária(s) foram preservadas e não geraram pedido de reconexão.'
+        : 'Nenhuma falha temporária foi convertida em pedido de reconexão.',
       '',
       '— Monitor automático HIPERATIVO V3',
       'Verificado em: ' + new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
@@ -168,14 +242,44 @@ function monitorarStravaOk() {
 
     MailApp.sendEmail({
       to: adminEmail,
-      subject: '⚠️ [Hiperativo] ' + problemas.length + ' atleta(s) precisam reconectar o Strava',
+      subject: '⚠️ [Hiperativo] ' + confirmados.length + ' reconexão(ões) Strava confirmada(s)',
       body: corpo
     });
 
-    Logger.log('Monitor: email enviado para ' + adminEmail + ' | ' + problemas.length + ' problema(s)');
+    _registrarAlertaStravaEnviado_(confirmados);
+    Logger.log('Monitor: email enviado para ' + adminEmail + ' | ' + confirmados.length + ' caso(s) confirmado(s)');
   } catch (e) {
     Logger.log('Monitor: erro — ' + e.message);
   }
+}
+
+function _fingerprintAlertaStrava_(atletas) {
+  return atletas.map(function(a) { return String(a.ath_id || '').trim(); })
+    .filter(String)
+    .sort()
+    .join('|');
+}
+
+function _deveEnviarAlertaStrava_(atletas) {
+  const props = PropertiesService.getScriptProperties();
+  const atual = _fingerprintAlertaStrava_(atletas);
+  const anterior = props.getProperty('STRAVA_ALERTA_FINGERPRINT') || '';
+  const enviadoEm = Number(props.getProperty('STRAVA_ALERTA_ENVIADO_EM') || 0);
+  const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+  return atual !== anterior || !enviadoEm || (Date.now() - enviadoEm) >= SETE_DIAS_MS;
+}
+
+function _registrarAlertaStravaEnviado_(atletas) {
+  PropertiesService.getScriptProperties().setProperties({
+    STRAVA_ALERTA_FINGERPRINT: _fingerprintAlertaStrava_(atletas),
+    STRAVA_ALERTA_ENVIADO_EM: String(Date.now())
+  }, false);
+}
+
+function _limparEstadoAlertaStrava_() {
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty('STRAVA_ALERTA_FINGERPRINT');
+  props.deleteProperty('STRAVA_ALERTA_ENVIADO_EM');
 }
 
 function instalarAcionadorMonitor() {
@@ -195,7 +299,8 @@ function instalarAcionadorMonitor() {
 }
 // ─── RENOVAÇÃO PROATIVA DE TOKENS (CORE DA RESILIÊNCIA) ──────────────────────
 // Roda a cada 4h via trigger — SEM precisar abrir a planilha.
-// Fluxo: lê tokens do Supabase → renova via API Strava → salva em ScriptProps + Supabase.
+// Fluxo: lê tokens do Supabase como inventário/fallback → renova via API Strava
+// → persiste primeiro no Apps Script/planilha e mantém o Supabase como backup.
 // Garante que nenhum token expire passivamente, mesmo sem uso do sistema.
 
 function renovacaoProativaTokens() {
@@ -245,11 +350,32 @@ function renovacaoProativaTokens() {
 
         const novo = JSON.parse(refreshResp.getContentText());
 
-        props.setProperty('RT_' + t.ath_id, novo.refresh_token);
-        props.setProperty('AT_' + t.ath_id, novo.access_token);
-        props.setProperty('EX_' + t.ath_id, String(novo.expires_at));
+        const atual = typeof _getTokenRow_ === 'function' ? _getTokenRow_(t.ath_id) : null;
+        const refreshSeguro = novo.refresh_token || t.refresh_token;
+        let persistido = false;
+        if (typeof persistirCredenciaisStrava === 'function') {
+          try {
+            persistido = persistirCredenciaisStrava(t.ath_id, {
+              accessToken: novo.access_token,
+              refreshToken: refreshSeguro,
+              expiresAt: Number(novo.expires_at) * 1000,
+              scope: (atual && atual.scope) || '',
+              stravaId: (atual && atual.stravaId) || '',
+              nome: t.nome || (atual && atual.nome) || ''
+            }, 'renovacao_proativa');
+          } catch (e) {
+            Logger.log('Fluxo central falhou para ' + t.ath_id + '; usando cópia de segurança: ' + e.message);
+          }
+        }
 
-        supaUpsertToken(t.ath_id, t.nome, novo.access_token, novo.refresh_token, novo.expires_at);
+        if (!persistido) {
+          // Compatibilidade defensiva se o fluxo central ainda não estiver
+          // disponível na versão publicada: preserva as cópias já existentes.
+          props.setProperty('RT_' + t.ath_id, refreshSeguro);
+          props.setProperty('AT_' + t.ath_id, novo.access_token);
+          props.setProperty('EX_' + t.ath_id, String(novo.expires_at));
+          supaUpsertToken(t.ath_id, t.nome, novo.access_token, refreshSeguro, novo.expires_at);
+        }
 
         renovados++;
         Logger.log('OK: ' + t.ath_id + ' (' + t.nome + ') renovado.');
