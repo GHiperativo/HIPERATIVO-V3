@@ -820,6 +820,17 @@
   <div class="card">
     <div class="card-header">📣 Como nos Conheceu?</div>
     <div class="card-body">
+      <div class="form-row" style="margin-bottom:16px;">
+        <div class="form-group full">
+          <label>Você utiliza Strava? <span class="req">*</span></label>
+          <select name="usa_strava" id="usaStrava" required>
+            <option value="">Selecione...</option>
+            <option value="Sim">Sim — quero conectar e importar meus treinos</option>
+            <option value="Não">Não — concluir cadastro sem Strava</option>
+          </select>
+          <div class="input-hint">Se escolher “Não”, você não receberá pedidos de conexão.</div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>Canal / Indicação</label>
@@ -1024,6 +1035,11 @@
 
   <input type="hidden" name="athId" id="athId" value="<?= athId ?>">
   <input type="hidden" name="waLink" id="waLink" value="">
+  <input type="hidden" name="utm_source" value="<?= utmSource ?>">
+  <input type="hidden" name="utm_medium" value="<?= utmMedium ?>">
+  <input type="hidden" name="utm_campaign" value="<?= utmCampaign ?>">
+  <input type="hidden" name="utm_content" value="<?= utmContent ?>">
+  <input type="hidden" name="ref" value="<?= refOrigem ?>">
 
   <div class="nav-btns">
     <button type="button" class="btn-prev" onclick="irPara(3)">← Voltar</button>
@@ -1044,10 +1060,24 @@
       Bem-vindo(a) ao Grupo Hiperativo!<br>Seu código de atleta: <strong id="athIdExibir"></strong>
     </div>
 
-    <div style="margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;text-align:center;">
-      <div style="font-size:1.4rem;margin-bottom:12px">📧</div>
-      <p style="font-size:1rem;color:#e8e8e8;font-weight:600;margin-bottom:8px;">Verifique seu e-mail!</p>
-      <p style="font-size:.9rem;color:#aaa;line-height:1.6">Enviamos um link para conectar seu Strava ao HIPERATIVO.<br>Clique no link do e-mail para ativar a importacao automatica dos seus treinos.</p>
+    <div class="strava-card-conn" id="stravaConectarCard" style="display:none;">
+      <h3>🏃 Conecte seu Strava agora</h3>
+      <p>Autorize uma vez para que seus treinos sejam importados automaticamente. O link também foi enviado ao seu e-mail como segurança.</p>
+      <div class="beneficios">
+        <span>✓ Importação automática das atividades</span>
+        <span>✓ Métricas e ranking atualizados</span>
+        <span>✓ Seu refresh token será preservado com segurança</span>
+      </div>
+      <button type="button" class="btn-strava" onclick="conectarStrava()">CONECTAR MEU STRAVA</button>
+      <button type="button" class="btn-strava-pular" onclick="pularStrava()">Conectar depois</button>
+      <div class="strava-timer" id="stravaTimer"></div>
+    </div>
+
+    <div id="stravaJaConectando" style="display:none;margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;color:#aaa;line-height:1.6;"></div>
+
+    <div id="cadastroSemStrava" style="display:none;margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;text-align:center;">
+      <p style="font-size:1rem;color:#e8e8e8;font-weight:600;margin-bottom:8px;">Cadastro concluído sem Strava</p>
+      <p style="font-size:.9rem;color:#aaa;line-height:1.6">Você não receberá pedidos de conexão. Se mudar de ideia, fale com o treinador.</p>
     </div>
   </div>
 </div>
@@ -1288,23 +1318,14 @@
           document.getElementById('athId').value = resp.athId || data.athId || '';
           document.getElementById('athIdExibir').textContent = resp.athId || '';
 
-          // Ir para tela de sucesso + Strava
+          // Ir para tela de sucesso e respeitar a escolha de uso do Strava.
           irPara(5);
           document.getElementById('telaStrava').style.display = 'block';
-          // Ocultar botao Strava - link enviado por email
           var sc = document.getElementById('stravaConectarCard');
-          if (sc) {
-            sc.style.display = 'none';
-            var msg = document.createElement('div');
-            msg.style.cssText = 'margin-top:24px;padding:20px;background:#1c1c1c;border-radius:12px;text-align:center';
-            msg.innerHTML = '<p style="font-size:1.2rem;margin-bottom:8px">📧</p><p style="color:#e8e8e8;font-weight:600;margin-bottom:6px">Verifique seu e-mail!</p><p style="color:#aaa;font-size:.85rem;line-height:1.5">Enviamos o link para conectar seu Strava. Clique nele quando quiser ativar a importacao dos treinos.</p>';
-            sc.parentNode.insertBefore(msg, sc.nextSibling);
-          }
-
-          // Se marcou Strava, iniciar countdown automático
-          if (document.getElementById('chkStrava') && document.getElementById('chkStrava').checked && oauthUrlGlobal) {
-            iniciarCountdownStrava(5);
-          }
+          var sem = document.getElementById('cadastroSemStrava');
+          var querStrava = resp.usaStrava !== false && data.usa_strava !== 'Não';
+          if (querStrava && oauthUrlGlobal) sc.style.display = 'block';
+          else sem.style.display = 'block';
         } else {
           btn.disabled = false;
           btn.textContent = '⚡ FINALIZAR CADASTRO';

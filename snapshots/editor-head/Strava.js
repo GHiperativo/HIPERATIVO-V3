@@ -80,6 +80,17 @@ function _processarFormCadastro(p) {
     const waLink = p.waLink || (p.whats ? 'https://wa.me/' + String(p.whats).replace(/\D/g, '') : '');
     const obsBase = p.obs || '';
     const obsText = waLink ? (waLink + (obsBase ? ' | ' + obsBase : '')) : obsBase;
+    const usaStrava = String(p.usa_strava || 'Sim').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') !== 'nao';
+    const atribuicao = [
+      p.origem || '',
+      p.utm_source ? 'utm_source=' + p.utm_source : '',
+      p.utm_medium ? 'utm_medium=' + p.utm_medium : '',
+      p.utm_campaign ? 'utm_campaign=' + p.utm_campaign : '',
+      p.utm_content ? 'utm_content=' + p.utm_content : '',
+      p.ref ? 'ref=' + p.ref : ''
+    ].filter(String).join(' | ');
+    const origemFinal = atribuicao || 'Formulário Web';
 
     // MAPEAMENTO CORRETO: 26 valores → cols 2–27 (H.CAD)
     const vals = [
@@ -184,9 +195,9 @@ function salvarCadastroAjax(p) {
       p.cidade || '',               // col 19  CIDADE
       p.estado || '',               // col 20  ESTADO
       p.cpf || '',               // col 21  CPF
-      p.origem || 'Formulário Web', // col 22  ORIGEM
+      origemFinal,                         // col 22  ORIGEM + atribuição UTM
       agora,                              // col 23  DATA_CAD
-      'Pendente',                         // col 24  STRAVA_OK
+      usaStrava ? 'Pendente' : 'Não',     // col 24  STRAVA_OK
       '',                                 // col 25  STRAVA_ID
       'Ativo',                            // col 26  STATUS
       obsText,                            // col 27  OBS (wa.me link + obs)
@@ -216,7 +227,9 @@ function salvarCadastroAjax(p) {
 
     // Gerar URL OAuth para retornar ao frontend (conexão Strava inline, sem depender de email)
     let oauthUrl = '';
-    try { oauthUrl = _gerarUrlOAuth(athId); } catch (oe) { /* credenciais não configuradas ainda */ }
+    if (usaStrava) {
+      try { oauthUrl = _gerarUrlOAuth(athId); } catch (oe) { /* credenciais não configuradas ainda */ }
+    }
 
     // ── Email de boas-vindas ──────────────────────────────────────────────────
     const emailAtleta = p.email || '';
@@ -224,7 +237,7 @@ function salvarCadastroAjax(p) {
     if (emailAtleta) {
       try {
         const assunto = 'Bem-vindo(a) ao Hiperativo! 🏃';
-        const corpo = _htmlEmailConfirmacaoCadastro(nomeAtleta, athId, oauthUrl || (webAppUrl + '?athId=' + encodeURIComponent(athId)));
+        const corpo = _htmlEmailConfirmacaoCadastro(nomeAtleta, athId, oauthUrl);
         MailApp.sendEmail({ to: emailAtleta, subject: assunto, htmlBody: corpo, replyTo: adminEmail });
         _log(athId, 'INFO', 'salvarCadastroAjax', 'Email boas-vindas enviado para ' + emailAtleta, '');
       } catch (eEmail) {
@@ -250,7 +263,7 @@ function salvarCadastroAjax(p) {
       }
     }
 
-    return { ok: true, athId: athId, nome: p.nome || '', oauthUrl: oauthUrl };
+    return { ok: true, athId: athId, nome: p.nome || '', oauthUrl: oauthUrl, usaStrava: usaStrava };
 
   } catch (err) {
     _log(athId, 'ERRO', 'salvarCadastroAjax', err.message, err.stack || '');
@@ -260,6 +273,16 @@ function salvarCadastroAjax(p) {
 
 // ── Template email confirmacao de cadastro ─────────────────────────────────────
 function _htmlEmailConfirmacaoCadastro(nome, athId, linkStrava) {
+  const blocoStrava = linkStrava ? `
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <h3 style="color:#1a3a8a;margin:0 0 8px">🏃 Conecte seu Strava</h3>
+  <p style="color:#444;line-height:1.6">Conectando sua conta, seu treinador poderá acompanhar seus treinos automaticamente.</p>
+  <div style="text-align:center;margin:24px 0">
+    <a href="${linkStrava}" style="background:#fc4c02;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">⚡ Conectar meu Strava agora</a>
+  </div>
+  <p style="color:#888;font-size:13px;text-align:center">Você também pode conectar mais tarde pelo mesmo link.</p>` : `
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#444;line-height:1.6;text-align:center">Seu cadastro foi concluído sem Strava. Você não receberá pedidos de conexão.</p>`;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif">
@@ -278,15 +301,8 @@ function _htmlEmailConfirmacaoCadastro(nome, athId, linkStrava) {
   <div style="background:#f4f6f9;border-radius:8px;padding:16px;text-align:center;margin:16px 0">
     <span style="font-size:22px;font-weight:bold;color:#1a3a8a;letter-spacing:3px">${athId}</span>
   </div>
-  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-  <h3 style="color:#1a3a8a;margin:0 0 8px">🏃 Conecte seu Strava (opcional mas recomendado)</h3>
-  <p style="color:#444;line-height:1.6">Conectando sua conta Strava, seu treinador poderá acompanhar seus treinos automaticamente, sem que você precise enviar nada.</p>
-  <div style="text-align:center;margin:24px 0">
-    <a href="${linkStrava}" style="background:#fc4c02;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
-      ⚡ Conectar meu Strava agora
-    </a>
-  </div>
-  <p style="color:#888;font-size:13px;text-align:center">Você também pode conectar mais tarde acessando o mesmo link acima.<br>Guarde seu código de atleta: <strong>${athId}</strong></p>
+  ${blocoStrava}
+  <p style="color:#888;font-size:13px;text-align:center">Guarde seu código de atleta: <strong>${athId}</strong></p>
 </td></tr>
 <tr><td style="background:#1a3a8a;padding:16px;text-align:center">
   <p style="color:rgba(255,255,255,.6);font-size:12px;margin:0">Grupo Hiperativo | contato@ghiperativo.com.br</p>

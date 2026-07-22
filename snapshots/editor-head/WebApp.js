@@ -34,6 +34,11 @@ function doGet(e) {
   try {
     const tmpl = HtmlService.createTemplateFromFile('cadastro');
     tmpl.athId = p.athId || '';
+    tmpl.utmSource = p.utm_source || '';
+    tmpl.utmMedium = p.utm_medium || '';
+    tmpl.utmCampaign = p.utm_campaign || '';
+    tmpl.utmContent = p.utm_content || '';
+    tmpl.refOrigem = p.ref || '';
     return tmpl.evaluate()
       .setTitle('Cadastro — Grupo Hiperativo')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)

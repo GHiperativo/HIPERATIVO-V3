@@ -84,7 +84,9 @@ function gerarLinkCadastro() {
   if (r.getSelectedButton() !== ui.Button.OK) return;
 
   const athId        = (r.getResponseText() || '').trim().toUpperCase();
-  const linkCadastro = url + '?cadastro=true' + (athId ? '&athId=' + encodeURIComponent(athId) : '');
+  const linkCadastro = url + '?cadastro=true'
+    + (athId ? '&athId=' + encodeURIComponent(athId) : '')
+    + '&utm_source=link_direto&utm_medium=convite&utm_campaign=cadastro_hiperativo';
 
   ui.alert(
     '🔗 Link de Cadastro do Atleta',
@@ -149,7 +151,7 @@ function gerarLinkCadastroEmail() {
   
   // Montar link personalizado com UTM params e nome do atleta
   const nomeEncoded = encodeURIComponent(nome);
-  const link = webAppUrl + '?athId=' + athId + 
+  const link = webAppUrl + '?cadastro=true&athId=' + encodeURIComponent(athId) +
                '&ref=email' +
                '&utm_source=email&utm_medium=convite&utm_campaign=cadastro_hiperativo';
   
@@ -283,7 +285,8 @@ function gerarLinkCadastroWhatsapp() {
   const primeiroNome = nome.split(' ')[0];
   
   const athId = 'ATH' + String(Date.now()).slice(-6);
-  const link = webAppUrl + '?athId=' + athId + '&ref=whatsapp';
+  const link = webAppUrl + '?cadastro=true&athId=' + encodeURIComponent(athId)
+    + '&ref=whatsapp&utm_source=whatsapp&utm_medium=convite&utm_campaign=cadastro_hiperativo';
   
   const mensagem = [
     'Olá, ' + primeiroNome + '! 👋',
