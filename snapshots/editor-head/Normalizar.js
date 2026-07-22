@@ -162,6 +162,49 @@ function traduzirTipo(sportType, typeFallback) {
   return SPORT_TYPE_DICT[chave] || chave || 'Outro';
 }
 
+// Traduz somente os nomes automáticos padrão do Strava. Títulos livres criados
+// pelo atleta são preservados exatamente como foram escritos.
+function traduzirNomeAtividadeStrava_(nome) {
+  var original = String(nome || '').trim();
+  if (!original) return '';
+  var m = original.match(/^(Morning|Lunch|Afternoon|Evening|Night) (Run|Trail Run|Virtual Run|Ride|Virtual Ride|Mountain Bike Ride|Walk|Hike|Swim|Workout|Weight Training|Row|Yoga)$/);
+  if (!m) return original;
+
+  var atividades = {
+    'Run': 'Corrida',
+    'Trail Run': 'Corrida em trilha',
+    'Virtual Run': 'Corrida virtual',
+    'Ride': 'Pedalada',
+    'Virtual Ride': 'Pedalada virtual',
+    'Mountain Bike Ride': 'Pedalada de mountain bike',
+    'Walk': 'Caminhada',
+    'Hike': 'Trilha',
+    'Swim': 'Natação',
+    'Workout': 'Treino',
+    'Weight Training': 'Musculação',
+    'Row': 'Remo',
+    'Yoga': 'Yoga'
+  };
+  var periodos = {
+    'Morning': 'matinal',
+    'Lunch': 'na hora do almoço',
+    'Afternoon': 'à tarde',
+    'Evening': 'ao entardecer',
+    'Night': 'noturna'
+  };
+  return atividades[m[2]] + ' ' + periodos[m[1]];
+}
+
+// O Strava envia start_date_local com sufixo Z, mas o valor representa o
+// relógio local do atleta. Remover o Z evita deslocar a atividade em -3 horas.
+function parseDataLocalStrava_(valor) {
+  if (!valor) return null;
+  var m = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+  var d = new Date(valor);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // — NORMALIZAÇÃO PRINCIPAL ———————————————————————————
 
 function normalizarAtividadeStrava(activity, atleta) {
@@ -221,7 +264,7 @@ function normalizarAtividadeStrava(activity, atleta) {
 
   var data_hora = null;
   if (activity.start_date_local) {
-    data_hora = new Date(activity.start_date_local);
+    data_hora = parseDataLocalStrava_(activity.start_date_local);
   } else if (activity.start_date) {
     data_hora = new Date(activity.start_date);
   }
@@ -244,7 +287,7 @@ function normalizarAtividadeStrava(activity, atleta) {
     tipo,
     tipo_original,
     strava_id,
-    nome_atividade: activity.name || '',
+    nome_atividade: traduzirNomeAtividadeStrava_(activity.name),
     dist_km,
     dist_fmt,
     tempo_mov_s,
@@ -317,6 +360,10 @@ function normalizadoParaLinha(norm) {
 // — PREPARAR ABA ATIVIDADES ——————————————————————————
 
 function prepararAbaAtividadesNormalizada() {
+  // Compatibilidade: a rotina antiga limpava toda a aba. O pipeline unificado
+  // agora migra e formata sem apagar histórico nem PSE.
+  return organizarExtracoesStrava();
+
   const ss = SpreadsheetApp.openById('1bI5pnt-HOAD5p8M2hqjEsU9P816hc94wy4mqx0J_xOM');
   const sh = ss.getSheetByName('🏃 ATIVIDADES');
 

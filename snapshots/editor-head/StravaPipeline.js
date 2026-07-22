@@ -170,7 +170,9 @@ function converterAtividadeRawParaConvertida_(raw) {
   var athId    = raw['ATH_ID']      || '';
   var atleta   = raw['Atleta']      || '';
   var stravaId = raw['Activity ID'] || raw['Strava ID'] || '';
-  var nome     = raw['Name']        || raw['Nome da Atividade'] || '';
+  var nomeOriginal = raw['Name'] || raw['Nome da Atividade'] || '';
+  var nome     = typeof traduzirNomeAtividadeStrava_ === 'function'
+    ? traduzirNomeAtividadeStrava_(nomeOriginal) : nomeOriginal;
   var tipoRaw  = raw['Sport Type']  || raw['Type'] || '';
   var tipo     = traduzirTipoStrava_(tipoRaw);
   var manual   = (raw['Manual'] === true || raw['Manual'] === 'true') ? 'Sim' : 'Não';
@@ -179,7 +181,9 @@ function converterAtividadeRawParaConvertida_(raw) {
 
   // ── Data/hora ────────────────────────────────────────────────────
   var dataHoraRaw = raw['Start Date Local'] || raw['Data/Hora'] || '';
-  var dataHoraObj = dataHoraRaw ? new Date(dataHoraRaw) : null;
+  var dataHoraObj = dataHoraRaw
+    ? (typeof parseDataLocalStrava_ === 'function' ? parseDataLocalStrava_(dataHoraRaw) : new Date(dataHoraRaw))
+    : null;
   var tz          = Session.getScriptTimeZone();
   var dataFmt  = dataHoraObj ? Utilities.formatDate(dataHoraObj, tz, 'dd/MM/yyyy') : '';
   var horaFmt  = dataHoraObj ? Utilities.formatDate(dataHoraObj, tz, 'HH:mm:ss')   : '';

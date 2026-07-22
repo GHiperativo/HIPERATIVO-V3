@@ -508,6 +508,10 @@ function corrigirErrosDaPlanilha() {
 // Menu: ⚙️ Configurações → 📐 Migrar dados de atividades (km/min)
 // ══════════════════════════════════════════════════════════════════════════════
 function migrarFormatacaoAtividades() {
+  // A rotina anterior transformava segundos em fração de dia e prejudicava
+  // métricas. O pipeline único preserva segundos e cria colunas de exibição.
+  return organizarExtracoesStrava();
+
   const ss   = SpreadsheetApp.getActiveSpreadsheet();
   const sh   = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   if (!sh) { SpreadsheetApp.getUi().alert('Aba ATIVIDADES não encontrada.'); return; }

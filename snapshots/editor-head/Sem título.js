@@ -14,6 +14,10 @@ var SHEET_CADASTRO_FIX = '👤 CADASTRO';
  * Pode ser chamada manualmente ou por trigger
  */
 function corrigirPainel() {
+  // O painel oficial já lê 🏃 ATIVIDADES. Mantemos este nome apenas para não
+  // quebrar gatilhos ou atalhos antigos.
+  if (typeof atualizarPainel === 'function') return atualizarPainel();
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var wsConv = ss.getSheetByName(SHEET_CONV_FIX);
   var wsPainel = ss.getSheetByName(SHEET_PAINEL_FIX);

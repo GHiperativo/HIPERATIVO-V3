@@ -379,6 +379,7 @@ function importarAtividades() {
       props.setProperty('Q_HIST_' + athId, '0');
       props.deleteProperty('Q_HIST_DONE_' + athId);
       const lote = _importarHistoricoPaginado(athId, 0);
+      if (typeof ordenarAtividadesMaisRecentes_ === 'function') ordenarAtividadesMaisRecentes_();
       if (lote.concluido) props.deleteProperty('Q_HIST_' + athId);
       else props.setProperty('Q_HIST_' + athId, String(lote.ultimaPagina));
       msg = '✅ ' + lote.novas + ' novas atividades importadas para ' + athId +
@@ -403,25 +404,42 @@ function _importarAtividadesAtleta(athId, paginas) {
   paginas = paginas || 3;
   let todas = [];
   for (let pg = 1; pg <= paginas; pg++) {
-    const url = STRAVA_API_BASE + '/athlete/activities?per_page=50&page=' + pg;
+    if (typeof _qTemCapacidade_ === 'function' && !_qTemCapacidade_(PropertiesService.getScriptProperties())) break;
+    const url = STRAVA_API_BASE + '/athlete/activities?per_page=100&page=' + pg;
     const resp = UrlFetchApp.fetch(url, {
       headers: { Authorization: 'Bearer ' + accessToken },
       muteHttpExceptions: true
     });
-    if (resp.getResponseCode() !== 200) break;
+    if (typeof _qRegistrarRate_ === 'function') _qRegistrarRate_(resp);
+    if (resp.getResponseCode() === 429 || resp.getResponseCode() !== 200) break;
     const page = JSON.parse(resp.getContentText());
     console.log('[IMPORT] pg=' + pg + ' atividades=' + page.length + ' total=' + todas.length);
     if (!page.length) break;
     todas = todas.concat(page);
   }
-  return _gravarAtividades(athId, nomeAtleta, todas);
+  const novas = _gravarAtividades(athId, nomeAtleta, todas);
+  if (typeof ordenarAtividadesMaisRecentes_ === 'function') ordenarAtividadesMaisRecentes_();
+  return novas;
 }
 
 function _gravarAtividades(athId, nomeAtleta, atividades) {
   if (!atividades.length) return 0;
+  if (typeof _garantirEstruturaAtividadesUnificada_ === 'function') {
+    _garantirEstruturaAtividadesUnificada_(false);
+  }
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   if (!sheet) throw new Error('Aba ATIVIDADES não encontrada.');
+
+  // A resposta original é preservada primeiro. Uma falha na camada RAW não
+  // pode interromper a camada operacional, mas fica registrada para auditoria.
+  try {
+    if (typeof registrarAtividadesBrutasStrava_ === 'function') {
+      registrarAtividadesBrutasStrava_(athId, nomeAtleta, atividades);
+    }
+  } catch (eRaw) {
+    _log(athId, 'AVISO', '_gravarAtividades', 'Falha ao registrar RAW: ' + eRaw.message, '');
+  }
 
   const existentes = new Map();
   const dataAtual = sheet.getDataRange().getValues();
@@ -449,17 +467,19 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
     const paceFmt = _formatarVelocidadeDisplay(velMps, norm.tipo);
     const execId = 'ATIV_' + Utilities.getUuid().substring(0, 8).toUpperCase();
 
+    const velKmh = velMps > 0 ? Math.round(velMps * 3.6 * 100) / 100 : 0;
+    const dataAtividade = norm.data_hora ? new Date(norm.data_hora) : null;
     const linha = [
       execId,                                    // 1  EXEC_ID
       norm.ath_id,                               // 2  ATH_ID
       norm.atleta,                               // 3  NOME
-      norm.data_hora ? new Date(norm.data_hora) : '', // 4 DATA
+      dataAtividade || '',                       // 4 DATA
       norm.tipo,                                 // 5  TIPO (normalizado PT-BR)
       'Strava',                                  // 6  FONTE
       norm.strava_id,                            // 7  STRAVA_ID
       norm.nome_atividade,                       // 8  NOME_ATIV
-      (norm.tempo_mov_s || 0) / 86400,           // 9  MOV_S (fração de dia)
-      (a.elapsed_time || 0) / 86400,             // 10 TOTAL_S
+      norm.tempo_mov_s || 0,                     // 9  MOV_S (segundos)
+      a.elapsed_time || 0,                       // 10 TOTAL_S (segundos)
       a.distance ? Math.round(a.distance) : 0,  // 11 DIST_M (metros brutos)
       norm.dist_km,                              // 12 DIST_KM (normalizado)
       velMps,                                    // 13 VEL_MPS (m/s raw — analytics)
@@ -475,13 +495,23 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
       '',                                        // 23 ROTA — polyline REMOVIDA (só Supabase)
       new Date(),                                // 24 IMPORTADO
       '',                                        // 25 PSE (entrada manual 1-10)
+      norm.tempo_mov_fmt || '',                  // 26 TEMPO MOVIMENTO HH:MM:SS
+      norm.tempo_total_fmt || '',                // 27 TEMPO TOTAL HH:MM:SS
+      velKmh,                                    // 28 VELOCIDADE KM/H
+      velKmh > 0 ? velKmh.toFixed(2).replace('.', ',') + ' km/h' : '', // 29 VEL_FMT
+      norm.dist_km > 0 ? norm.dist_km.toFixed(1).replace('.', ',') + ' km' : '', // 30 DIST_FMT
+      norm.tipo_original || '',                  // 31 TIPO ORIGINAL
+      dataAtividade || '',                       // 32 DATA FORMATADA PELA PLANILHA
+      dataAtividade ? Utilities.formatDate(dataAtividade, Session.getScriptTimeZone(), 'HH:mm:ss') : '', // 33 HORA
+      'Importado',                               // 34 STATUS
     ];
 
     const linhaExistente = existentes.get(sid);
     if (linhaExistente) {
       if (linhaExistente > dataAtual.length) continue;
-      const atual = dataAtual[linhaExistente - 1].slice(0, 25);
-      if (!_atividadePrecisaReparo_(atual)) continue;
+      const atual = dataAtual[linhaExistente - 1].slice(0, 34);
+      while (atual.length < 34) atual.push('');
+      if (!_atividadePrecisaReparo_(atual, linha)) continue;
 
       // Preserva campos internos e manuais; recompõe apenas uma linha que já
       // está comprovadamente incompleta com a resposta oficial da Strava.
@@ -501,8 +531,10 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
 
   _gravarBlocosAtividades_(sheet, linhasReparadas);
   if (novasLinhas.length) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, novasLinhas.length, 25).setValues(novasLinhas);
+    sheet.getRange(sheet.getLastRow() + 1, 1, novasLinhas.length, 34).setValues(novasLinhas);
   }
+
+  if (count > 0 || reparadas > 0) _atividadesAlteradasExecucao_ = true;
 
   _log(athId, 'INFO', '_gravarAtividades',
     count + ' novas; ' + reparadas + ' reparadas de ' + atividades.length + ' recebidas', '');
@@ -523,11 +555,20 @@ function _gravarAtividades(athId, nomeAtleta, atividades) {
 }
 
 /** Uma atividade existente só é regravada quando faltam campos estruturais. */
-function _atividadePrecisaReparo_(linha) {
+function _atividadePrecisaReparo_(linha, oficial) {
+  const dataAtual = linha[3] instanceof Date ? linha[3].getTime() : new Date(linha[3] || 0).getTime();
+  const dataOficial = oficial && oficial[3] instanceof Date ? oficial[3].getTime() : dataAtual;
+  const nomeAtual = String(linha[7] || '').trim();
+  const nomeTraduzido = typeof traduzirNomeAtividadeStrava_ === 'function'
+    ? traduzirNomeAtividadeStrava_(nomeAtual) : nomeAtual;
   return !String(linha[2] || '').trim() ||
     !linha[3] ||
     !String(linha[7] || '').trim() ||
-    (Number(linha[10]) > 0 && !(Number(linha[11]) > 0));
+    (nomeTraduzido !== nomeAtual && oficial && nomeTraduzido === String(oficial[7] || '').trim()) ||
+    (Number(linha[10]) > 0 && !(Number(linha[11]) > 0)) ||
+    (Number(linha[8]) > 0 && !String(linha[25] || '').trim()) ||
+    (Number(linha[12]) > 0 && !String(linha[28] || '').trim()) ||
+    (isFinite(dataAtual) && isFinite(dataOficial) && Math.abs(dataAtual - dataOficial) >= 60000);
 }
 
 /** Agrupa linhas contíguas para reduzir chamadas à planilha. */
@@ -543,13 +584,13 @@ function _gravarBlocosAtividades_(sheet, itens) {
     if (item.numero === anterior + 1) {
       valores.push(item.valores);
     } else {
-      sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
+      sheet.getRange(inicio, 1, valores.length, valores[0].length).setValues(valores);
       inicio = item.numero;
       valores = [item.valores];
     }
     anterior = item.numero;
   }
-  sheet.getRange(inicio, 1, valores.length, 25).setValues(valores);
+  sheet.getRange(inicio, 1, valores.length, valores[0].length).setValues(valores);
 }
 
 // ── Formatar pace em segundos para "5:30 /km" ─────────────────────────────────

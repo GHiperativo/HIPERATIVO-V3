@@ -270,6 +270,9 @@ function getActivityIdsExistentes_(sheetName, colName) {
 // CHAMA API STRAVA. USAR SOMENTE QUANDO AUTORIZADO.
 // ═══════════════════════════════════════════════════════════════════════════════
 function importarAtividadesRawConvertidas_1Atleta5_SEGURO(athId) {
+  Logger.log('[REDIRECIONADO] Importador RAW→CONV legado substituído pela fila central protegida.');
+  return processarFilaStrava();
+
   // Dispatch: sem athId → importação em lote de todos os atletas
   if (!athId) { Logger.log("SEM_ATH_ID_USA_EXEC_METRICAS_BETA"); return; } // dispatch restaurado
 
@@ -514,6 +517,9 @@ function reg_(ss, aba, campo, valor, obs) {
 // ❌ NÃO expõe tokens  ❌ NÃO mexe em métricas/painel/ranking/supabase
 // ═══════════════════════════════════════════════════════════════════════════════
 function importarLoteRawConvertidoTodosAtletas_SEGURO() {
+  Logger.log('[REDIRECIONADO] Lote RAW→CONV legado substituído pela fila central protegida.');
+  return processarFilaStrava();
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var tz = Session.getScriptTimeZone();
   var sp = PropertiesService.getScriptProperties();
@@ -741,6 +747,9 @@ function CHECAR_RESULTADOS_LOTE() {
 // ═══ CORREÇÃO, FORMATAÇÃO E AUTOMAÇÃO ═════════════════════════════════
 
 function corrigirDadosConv_() {
+  Logger.log('[REDIRECIONADO] Consolidação legada substituída pelo pipeline único.');
+  return organizarExtracoesStrava();
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var cadVariants = ['\ud83d\udc64 CADASTRO', '\ud83d\udccb CADASTRO', '\ud83e\uddd1 CADASTRO', '\ud83c\udfc3 CADASTRO', 'CADASTRO'];
   var nomeMap = {};
@@ -842,11 +851,11 @@ var ALIASES_MB_ = {
   atleta:       ['atleta','Atleta'],
   dataHora:     ['dataHoraRaw','Data/Hora','dataHora','Data Hora'],
   tipo:         ['tipo','Tipo de Esporte','tipoEsporte','Sport Type'],
-  tipoRaw:      ['tipoRaw','Sport Type'],
+  tipoRaw:      ['tipoRaw','Sport Type','Tipo Original'],
   distKm:       ['Distância km','distanciaKm','distancia','dist_km','distKm','distance'],
   duracaoMin:   ['Tempo Movimento s','Tempo Total s','Tempo Movimento','Tempo Total','duracaoMin','duracao','tempo_min'],
   paceMinKm:    ['paceMinKm','pace','Pace','pace_min_km'],
-  velKmh:       ['velocidadeKmh','velocidade','vel_kmh','Velocidade'],
+  velKmh:       ['velocidadeKmh','velocidade','vel_kmh','Velocidade km/h','Velocidade'],
   cargaSimples: ['Carga','cargaSimples','Carga Simples','carga'],
   intensidade:  ['intensidade','Intensidade','nivel_intensidade'],
   qualidade:    ['qualidadeDado','Qualidade do Dado','qualidade','Qualidade'],
@@ -856,17 +865,15 @@ var FATOR_INT_MB_ = {'leve':1.0,'moderado':1.3,'forte':1.6,'muito forte':2.0,'ve
 
 function gerarMetricasBeta() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var shC = null;
-  ['🏃 ATIVIDADES_CONVERTIDAS','ATIVIDADES_CONVERTIDAS'].forEach(function(n){if(!shC)shC=ss.getSheetByName(n);});
-  if (!shC) ss.getSheets().forEach(function(s){if(!shC&&s.getName().indexOf('ATIVIDADES_CONVERTIDAS')>=0)shC=s;});
-  if (!shC) { Logger.log('ERRO: aba ATIVIDADES_CONVERTIDAS nao encontrada'); return 'ERRO_SHEET_NAO_ENCONTRADA'; }
+  var shC = ss.getSheetByName(H.SHEETS.ATIVIDADES);
+  if (!shC) { Logger.log('ERRO: aba ATIVIDADES nao encontrada'); return 'ERRO_SHEET_NAO_ENCONTRADA'; }
   Logger.log('USANDO_ABA=' + shC.getName());
   var lastRow = shC.getLastRow();
-  if (lastRow < 2) { Logger.log('vazia'); return 'SEM_DADOS'; }
+  if (lastRow < 3) { Logger.log('vazia'); return 'SEM_DADOS'; }
   var lastCol = shC.getLastColumn();
-  var hdrs = shC.getRange(1,1,1,lastCol).getValues()[0];
+  var hdrs = shC.getRange(2,1,1,lastCol).getValues()[0];
   Logger.log('CONV_HEADERS=' + JSON.stringify(hdrs));
-  var rawData = shC.getRange(2,1,lastRow-1,lastCol).getValues();
+  var rawData = shC.getRange(3,1,lastRow-2,lastCol).getValues();
   var hIdx = {};
   hdrs.forEach(function(h,i){if(h) hIdx[String(h).trim()]=i;});
   var CI = {};
@@ -874,6 +881,7 @@ function gerarMetricasBeta() {
     CI[field]=-1;
     ALIASES_MB_[field].forEach(function(alias){if(CI[field]===-1&&hIdx[alias]!==undefined)CI[field]=hIdx[alias];});
   });
+  CI.duracaoEmSegundos = CI.duracaoMin >= 0 && /\ss$/i.test(String(hdrs[CI.duracaoMin] || '').trim());
   Logger.log('COLUMN_MAP=' + JSON.stringify(CI));
   var byAth={}, now=new Date();
   rawData.forEach(function(row){
@@ -994,7 +1002,7 @@ function buildMbRow_(){return Array.prototype.slice.call(arguments);}
 function mbDate_(row,CI){if(CI.dataHora<0)return null;var v=row[CI.dataHora];if(!v)return null;var d=(v instanceof Date)?v:new Date(v);return isNaN(d.getTime())?null:d;}
 function mbTipo_(row,CI){if(CI.tipo>=0&&row[CI.tipo])return String(row[CI.tipo]).trim();if(CI.tipoRaw>=0&&row[CI.tipoRaw])return String(row[CI.tipoRaw]).trim();return '';}
 function mbNum_(row,idx){if(idx<0)return null;var v=row[idx];if(v===null||v===undefined||v===''||v==='N/A')return null;var n=parseFloat(String(v).replace(',','.'));return isNaN(n)?null:n;}
-function mbDur_(row,CI){if(CI.duracaoMin<0)return null;var v=row[CI.duracaoMin];if(v===null||v===undefined||v==='')return null;var n=parseFloat(String(v).replace(',','.'));if(isNaN(n)||n<=0)return null;return n>500?n/60:n;}
+function mbDur_(row,CI){if(CI.duracaoMin<0)return null;var v=row[CI.duracaoMin];if(v===null||v===undefined||v==='')return null;var n=parseFloat(String(v).replace(',','.'));if(isNaN(n)||n<=0)return null;return CI.duracaoEmSegundos?n/60:(n>500?n/60:n);}
 function mbR2_(n){return Math.round(n*100)/100;}
 function mbFmtPace_(p){var m=Math.floor(p),s=Math.round((p-m)*60);if(s===60){m++;s=0;}return m+':'+(s<10?'0':'')+s+'/km';}
 function mbFmtMin_(m){if(m<60)return Math.round(m)+'min';var h=Math.floor(m/60),mm=Math.round(m%60);return h+'h'+(mm>0?mm+'min':'');}

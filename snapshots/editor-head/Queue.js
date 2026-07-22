@@ -18,7 +18,7 @@
 const Q_LIMITE_15MIN_FALLBACK = 80;
 const Q_LIMITE_DIA_FALLBACK   = 800;
 const Q_HIST_PAGINAS          = 2;
-const Q_PER_PAGE              = 50;
+const Q_PER_PAGE              = 100;
 const Q_MAX_ATLETAS           = 20;
 const Q_MAX_EXEC_MS           = 4 * 60 * 1000;
 const Q_LEASE_MS              = 8 * 60 * 1000;
@@ -81,7 +81,9 @@ function processarFilaStrava() {
       const isNovo  = histPag >= 0;
 
       try {
-        const resultado = _importarHistoricoPaginado(athId, isNovo ? histPag : 0);
+        // Histórico percorre duas páginas por ciclo; atualização recorrente lê
+        // apenas a primeira página para economizar a cota diária.
+        const resultado = _importarHistoricoPaginado(athId, isNovo ? histPag : 0, isNovo ? Q_HIST_PAGINAS : 1);
         reqUsadas += resultado.requests;
 
         if (isNovo && resultado.ultimaPagina > histPag) {
@@ -108,6 +110,13 @@ function processarFilaStrava() {
       }
     }
 
+    if (typeof ordenarAtividadesMaisRecentes_ === 'function') {
+      ordenarAtividadesMaisRecentes_();
+    }
+    if (typeof ordenarStravaRawMaisRecentes_ === 'function') {
+      ordenarStravaRawMaisRecentes_();
+    }
+
   // Avançar ponteiro
     const novaPos = (posAtual + processados) % Math.max(atletasAtivos.length, 1);
     props.setProperty('Q_POS_FILA', String(novaPos));
@@ -122,7 +131,7 @@ function processarFilaStrava() {
 }
 
 // ── IMPORTAÇÃO HISTÓRICA PAGINADA ─────────────────────────────────────────────
-function _importarHistoricoPaginado(athId, paginaInicio) {
+function _importarHistoricoPaginado(athId, paginaInicio, limitePaginas) {
   let   accessToken = _getValidAccessToken(athId);
   if (!accessToken) throw new Error('Nenhum access_token válido encontrado nas fontes de segurança.');
   const nomeAtleta  = _getNomeAtleta(athId);
@@ -133,7 +142,8 @@ function _importarHistoricoPaginado(athId, paginaInicio) {
   let   concluido = false;
   let   erro = '';
 
-  for (let pg = paginaInicio + 1; pg <= paginaInicio + Q_HIST_PAGINAS; pg++) {
+  const totalPaginas = Math.max(1, Number(limitePaginas) || Q_HIST_PAGINAS);
+  for (let pg = paginaInicio + 1; pg <= paginaInicio + totalPaginas; pg++) {
     if (!_qTemCapacidade_(PropertiesService.getScriptProperties())) break;
     const url  = STRAVA_API_BASE + '/athlete/activities?per_page=' + Q_PER_PAGE + '&page=' + pg;
     let resp = UrlFetchApp.fetch(url, {
@@ -169,6 +179,7 @@ function _importarHistoricoPaginado(athId, paginaInicio) {
       erro = 'Resposta inesperada da Strava na página ' + pg + '; cursor preservado.';
       break;
     }
+    // Uma página curta não garante o fim; o Strava orienta iterar até vazio.
     if (page.length === 0) {
       concluido = true;
       break;
@@ -176,10 +187,6 @@ function _importarHistoricoPaginado(athId, paginaInicio) {
 
     totalNovas += _gravarAtividades(athId, nomeAtleta, page);
     ultimaPagina = pg;
-    if (page.length < Q_PER_PAGE) {
-      concluido = true;
-      break;
-    }
   }
 
   return { novas: totalNovas, rateLimitado, requests, ultimaPagina, concluido, erro };
@@ -205,11 +212,13 @@ function agendarHistoricoCompletoTodos(reiniciarConcluidos) {
   if (!shTok) throw new Error('Aba TOKENS não encontrada.');
 
   const dados = shTok.getDataRange().getValues();
+  const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function' ? _mapaUsoStravaCadastro_() : {};
   const ids = new Set();
   for (let i = 1; i < dados.length; i++) {
     const athId = String(dados[i][H.TOK.ATH_ID - 1] || '').trim();
     const status = String(dados[i][H.TOK.STATUS - 1] || '').trim().toLowerCase();
-    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente') ids.add(athId);
+    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente' &&
+        !(typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava))) ids.add(athId);
   }
 
   let agendados = 0;
@@ -290,17 +299,19 @@ function diagnosticarMenuHiperativo() {
  * implantação desta versão. O marcador impede reagendamento em ciclos futuros.
  */
 function _qAgendarBackfillGlobalUmaVez_(props) {
-  const marcador = 'Q_HIST_ALL_V2_REPARO_AGENDADO_EM';
+  const marcador = 'Q_HIST_ALL_V3_RAW_UNIFICADO_AGENDADO_EM';
   if (props.getProperty(marcador)) return;
 
   const shTok = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.TOKENS);
   if (!shTok) throw new Error('Aba TOKENS não encontrada.');
   const dados = shTok.getDataRange().getValues();
+  const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function' ? _mapaUsoStravaCadastro_() : {};
   const ids = new Set();
   for (let i = 1; i < dados.length; i++) {
     const athId = String(dados[i][H.TOK.ATH_ID - 1] || '').trim();
     const status = String(dados[i][H.TOK.STATUS - 1] || '').trim().toLowerCase();
-    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente') ids.add(athId);
+    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente' &&
+        !(typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava))) ids.add(athId);
   }
 
   ids.forEach(athId => {
@@ -312,7 +323,7 @@ function _qAgendarBackfillGlobalUmaVez_(props) {
   }
   props.setProperty(marcador, new Date().toISOString());
   _log('SISTEMA', 'INFO', '_qAgendarBackfillGlobalUmaVez_',
-    'Backfill de reparo inicializado para ' + ids.size + ' atletas conectados', '');
+    'Backfill RAW unificado inicializado para ' + ids.size + ' atletas conectados', '');
 }
 
 // ── STATUS DA FILA (menu → diagnóstico) ──────────────────────────────────────

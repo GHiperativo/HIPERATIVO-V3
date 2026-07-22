@@ -11,6 +11,8 @@ const H = {
     PAINEL:    '📊 PAINEL',
     CADASTRO:  '👤 CADASTRO',
     ATIVIDADES:'🏃 ATIVIDADES',
+    STRAVA_RAW:'🏃 STRAVA_RAW',
+    ATIVIDADES_LEGADO:'🏃 ATIVIDADES_CONVERTIDAS',
     PLANO:     '📅 PLANO SEMANAL',
     METRICAS:  '📈 MÉTRICAS',
     FEEDBACK:  '💬 FEEDBACK',
@@ -108,6 +110,15 @@ const H = {
     ROTA:     23,
     IMPORTADO:24,
     PSE:      25,  // Percepção Subjetiva de Esforço (1-10, entrada manual)
+    MOV_FMT:  26,
+    TOTAL_FMT:27,
+    VEL_KMH:  28,
+    VEL_FMT:  29,
+    DIST_FMT: 30,
+    TIPO_ORIG:31,
+    DATA_FMT: 32,
+    HORA_FMT: 33,
+    STATUS:   34,
   },
 
   // ── Colunas da aba MÉTRICAS (1-indexed) ──────────────────────────────────
@@ -223,7 +234,7 @@ function onOpen() {
       .addItem('📊 Atualizar painel geral', 'atualizarPainel')
       .addItem('🧹 Reparar fórmulas operacionais', 'repararFormulasOperacionais')
       .addSeparator()
-      .addItem('📦 Importar lote RAW→CONV (seguro)', 'importarLoteRawConvertidoTodosAtletas_SEGURO')
+      .addItem('🗂️ Organizar extrações (RAW + convertidas)', 'organizarExtracoesStrava')
       .addItem('📈 Gerar Métricas Beta', 'gerarMetricasBeta')
       .addItem('⏰ Ativar automação principal (3h)', 'configurarAutomacaoPrincipal')
       .addItem('📊 Atualizar Ranking Completo', 'atualizarRankingExpandido')

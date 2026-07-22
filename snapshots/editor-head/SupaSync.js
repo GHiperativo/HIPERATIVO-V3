@@ -815,6 +815,10 @@ function verificarStatusRealStrava() {
 
     if (!_isAthIdValido_(athId)) continue;
     if (stravaOk !== 'Sim')      continue;
+    if (typeof _qTemCapacidade_ === 'function' && !_qTemCapacidade_(PropertiesService.getScriptProperties())) {
+      resultados.push('LIMITE: margem de segurança atingida — verificação interrompida');
+      break;
+    }
 
     verificados++;
     try {
@@ -829,6 +833,7 @@ function verificarStatusRealStrava() {
       var resp   = UrlFetchApp.fetch('https://www.strava.com/api/v3/athlete', {
         method: 'get', headers: { 'Authorization': 'Bearer ' + accessToken }, muteHttpExceptions: true
       });
+      if (typeof _qRegistrarRate_ === 'function') _qRegistrarRate_(resp);
       var status = resp.getResponseCode();
       if (status === 401 && typeof _forcarRefreshAccessToken_ === 'function') {
         var recuperado = _forcarRefreshAccessToken_(athId, accessToken);
@@ -836,6 +841,7 @@ function verificarStatusRealStrava() {
           resp = UrlFetchApp.fetch('https://www.strava.com/api/v3/athlete', {
             method: 'get', headers: { 'Authorization': 'Bearer ' + recuperado }, muteHttpExceptions: true
           });
+          if (typeof _qRegistrarRate_ === 'function') _qRegistrarRate_(resp);
           status = resp.getResponseCode();
         }
       }
