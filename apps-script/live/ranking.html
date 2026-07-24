@@ -8,8 +8,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#050d1a 0%,#0b1f3a 60%,#071428 100%);min-height:100vh;color:#fff;padding:16px}
 .header{text-align:center;padding:20px 0 10px}
-.logo{font-size:2.4rem;font-weight:900;letter-spacing:2px;color:#fff}
-.logo span{color:#00c853}
+.logo-svg{display:block;margin:0 auto;width:170px;height:65px}
 .sub{font-size:.72rem;color:#4fc3f7;letter-spacing:3px;margin-top:2px}
 .titulo{font-size:1.3rem;font-weight:700;margin-top:10px}
 .legenda{font-size:.78rem;color:#90caf9;margin-top:4px}
@@ -28,7 +27,15 @@ tr:first-child td{font-weight:700;background:rgba(255,249,196,.08)}
 </head>
 <body>
   <div class="header">
-    <div class="logo">HIPER<span>ATIVO</span></div>
+    <svg class="logo-svg" viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="7"
+              stroke-dasharray="175 76" stroke-dashoffset="-10" stroke-linecap="butt"/>
+      <polygon points="58,4 30,52 48,52 42,96 72,44 54,44" fill="#fff"/>
+      <text x="105" y="48" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2" dominant-baseline="auto">HIPER</text>
+      <text x="105" y="95" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2" dominant-baseline="auto">ATIVO</text>
+    </svg>
     <div class="sub">CABEÇA · CORAÇÃO · CORPO</div>
     <div class="titulo">🏆 Ranking Divertido</div>
     <div class="legenda"><?= totalParticipantes ?> atleta(s) participando por escolha própria</div>

@@ -536,10 +536,12 @@ function aplicarCorConexaoStrava() {
   if (!ws) { SpreadsheetApp.getUi().alert('Aba CADASTRO não encontrada.'); return; }
   _aplicarFormatacaoCadastroCond(ws);
   _congelar(ws, 3, 2);
+  _dropdown(ws, H.CAD.PARTICIPAR_RANKING, 4, 500, ['Sim', 'Não']);
   try {
     SpreadsheetApp.getUi().alert(
-      '✅ Cor da Conexão Strava aplicada',
-      'Coluna AX (Conexão Strava) agora tem cor por status.\n' +
+      '✅ Formatação do CADASTRO atualizada',
+      'Coluna AX (Conexão Strava) com cor por status.\n' +
+      'Coluna AZ (Participar do Ranking Divertido) agora é lista suspensa (Sim/Não), editável manualmente.\n' +
       'Cabeçalho (3 linhas) e colunas ID+Nome permanecem congelados ao rolar.',
       SpreadsheetApp.getUi().ButtonSet.OK
     );
