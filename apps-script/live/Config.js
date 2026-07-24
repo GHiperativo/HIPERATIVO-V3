@@ -324,7 +324,7 @@ function onOpen() {
       .addItem('⚠️ Ativar automações ANTIGAS (polling 3h/4h — só se o webhook não estiver ativo)', 'configurarTriggers')
       .addSeparator()
       .addItem('🩺 Diagnosticar menu e integrações', 'diagnosticarMenuHiperativo')
-      .addItem('🩺 Diagnosticar gatilhos (triggers) instalados agora', 'diagnosticarTriggersEssenciais')
+      .addItem('🩺 Diagnosticar gatilhos (triggers) instalados agora', 'mostrarDiagnosticoTriggers')
       .addItem('🔄 Sincronizar atletas em todas as abas', 'sincronizarAtletasEmTodasAbas')
       .addItem('🔢 Corrigir fórmulas do PAINEL', 'corrigirFormulasPainel')
       .addItem('🔧 Corrigir erros da planilha (linhas/colunas)', 'corrigirErrosDaPlanilha')

@@ -373,6 +373,34 @@ function diagnosticarTriggersEssenciais() {
   return { ok: status.every(function(s) { return s.ok; }), status: status, instalados: instalados };
 }
 
+/**
+ * Wrapper com alerta visível — diagnosticarTriggersEssenciais() só
+ * retorna um objeto e nunca aparecia na tela quando chamada pelo menu.
+ * Não diz a cadência (3h vs diária) — a API de triggers do Apps Script
+ * não expõe isso depois de criado — só confirma se há exatamente 1 de
+ * cada trigger essencial ou se há zero/duplicado.
+ */
+function mostrarDiagnosticoTriggers() {
+  const r = diagnosticarTriggersEssenciais();
+  const linhas = r.status.map(function(s) {
+    const icone = s.quantidade === 1 ? '✅' : s.quantidade === 0 ? '❌' : '⚠️';
+    return icone + ' ' + s.funcao + ' — ' + s.quantidade + ' instalado(s)';
+  });
+  const gerenciados = r.status.map(function(s) { return s.funcao; });
+  const extras = r.instalados.filter(function(t) { return gerenciados.indexOf(t.funcao) < 0; });
+  let msg = linhas.join('\n');
+  if (extras.length) {
+    msg += '\n\nOutros triggers instalados:\n' + extras.map(function(t) { return '• ' + t.funcao; }).join('\n');
+  }
+  msg += '\n\n' + (r.ok
+    ? 'Contagem OK (1 de cada). Isso NÃO confirma o intervalo — o Apps Script não permite consultar depois de criado.'
+    : 'Atenção: algum item com 0 ou mais de 1 instalado.');
+  try {
+    SpreadsheetApp.getUi().alert('🩺 Diagnóstico de Triggers', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+  } catch(_) { Logger.log(msg); }
+  return r;
+}
+
 // ── Desativar todos os triggers ─────────────────────────────
 function desativarTriggers(confirmacao) {
   if (confirmacao !== 'REMOVER_TODOS_OS_TRIGGERS') {
