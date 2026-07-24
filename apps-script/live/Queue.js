@@ -1,0 +1,535 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * HIPERATIVO V3 — Queue.gs (v1.0 — 14/06/2026)
+ * Sistema inteligente de fila e rate-limiting para Strava API
+ *
+ * Limites: obtidos dos headers de cada resposta; fallback conservador local.
+ *
+ * Lógica:
+ *  - Round-robin: cada ciclo continua de onde parou (ponteiro PropertiesService)
+ *  - Atletas novos têm flag Q_HIST_{athId} = próxima página de histórico
+ *  - Histórico importa lotes pequenos por ciclo, retomável entre execuções
+ *  - O cursor avança pelo tamanho da resposta da API, não pela quantidade nova
+ *  - Os limites são lidos dos headers oficiais retornados pela Strava
+ *  - 429 Strava interrompe o ciclo imediatamente
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+const Q_LIMITE_15MIN_FALLBACK = 80;
+const Q_LIMITE_DIA_FALLBACK   = 800;
+const Q_HIST_PAGINAS          = 2;
+const Q_PER_PAGE              = 100;
+const Q_MAX_ATLETAS           = 20;
+const Q_MAX_EXEC_MS           = 4 * 60 * 1000;
+const Q_LEASE_MS              = 8 * 60 * 1000;
+const Q_MAX_FALHAS_ANTES_DLQ   = 3;
+
+// ── PROCESSADOR PRINCIPAL DA FILA ────────────────────────────────────────────
+function processarFilaStrava() {
+  const execId = _qAdquirirExecucao_();
+  if (!execId) {
+    _log('SISTEMA', 'INFO', 'processarFilaStrava', 'Outro ciclo da fila ainda está em execução', '');
+    return;
+  }
+
+  const inicio = Date.now();
+  const props = PropertiesService.getScriptProperties();
+  try {
+    _qAgendarBackfillGlobalUmaVez_(props);
+    if (!_qTemCapacidade_(props)) {
+      const rate = _qEstadoRate_(props);
+      _log('SISTEMA', 'AVISO', 'processarFilaStrava',
+        'Margem de rate limit atingida: ' + rate.uso15 + '/' + rate.limite15 +
+        ' em 15min | ' + rate.usoDia + '/' + rate.limiteDia + ' no dia', '');
+      return;
+    }
+
+  // Carregar atletas ativos
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const shTok = ss.getSheetByName(H.SHEETS.TOKENS);
+  if (!shTok) return;
+
+    const tokDados = shTok.getDataRange().getValues();
+    const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function'
+      ? _mapaUsoStravaCadastro_() : {};
+    const idsUnicos = new Set();
+    for (let i = 1; i < tokDados.length; i++) {
+      const athId  = String(tokDados[i][H.TOK.ATH_ID - 1] || '').trim();
+      const status = String(tokDados[i][H.TOK.STATUS  - 1] || '').trim().toLowerCase();
+      if (!_isAthIdValido_(athId) || status === 'inativo' || status === 'pendente') continue;
+      if (typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava)) continue;
+      idsUnicos.add(athId);
+    }
+    const atletasAtivos = Array.from(idsUnicos);
+    if (atletasAtivos.length === 0) return;
+
+  // Ponteiro round-robin
+    let posAtual = parseInt(props.getProperty('Q_POS_FILA') || '0', 10);
+    if (posAtual >= atletasAtivos.length) posAtual = 0;
+
+    let reqUsadas    = 0;
+    let processados  = 0;
+    let visitados    = 0;
+    let emBackoff    = 0;
+    let interrompido = false;
+
+    for (let i = 0; i < Math.min(Q_MAX_ATLETAS, atletasAtivos.length); i++) {
+      if (interrompido || Date.now() - inicio >= Q_MAX_EXEC_MS || !_qTemCapacidade_(props)) break;
+      const idx   = (posAtual + i) % atletasAtivos.length;
+      const athId = atletasAtivos[idx];
+      visitados++;
+
+      if (_qAtletaEmBackoff_(props, athId)) {
+        emBackoff++;
+        continue;
+      }
+
+      const histKey = 'Q_HIST_' + athId;
+      const histVal = props.getProperty(histKey);
+      const histPag = histVal === null ? -1 : Math.max(0, parseInt(histVal || '0', 10));
+      const isNovo  = histPag >= 0;
+
+      try {
+        // Histórico percorre duas páginas por ciclo; atualização recorrente lê
+        // apenas a primeira página para economizar a cota diária.
+        const resultado = _importarHistoricoPaginado(athId, isNovo ? histPag : 0, isNovo ? Q_HIST_PAGINAS : 1);
+        reqUsadas += resultado.requests;
+
+        if (isNovo && resultado.ultimaPagina > histPag) {
+          // Persiste apenas páginas integralmente gravadas. Se o ciclo cair, a
+          // próxima execução continua sem pular nenhuma atividade.
+          props.setProperty(histKey, String(resultado.ultimaPagina));
+        }
+        if (isNovo && resultado.concluido) {
+          props.deleteProperty(histKey);
+          props.setProperty('Q_HIST_DONE_' + athId, String(resultado.ultimaPagina));
+          _log(athId, 'INFO', 'processarFilaStrava',
+            'Histórico completo até a página ' + resultado.ultimaPagina, '');
+        }
+        if (resultado.novas > 0) {
+          _log(athId, 'INFO', 'processarFilaStrava', resultado.novas + ' novas atividades', '');
+        }
+        if (resultado.erro) {
+          _log(athId, 'ERRO', 'processarFilaStrava', resultado.erro, '');
+          if (!resultado.rateLimitado) _qRegistrarFalhaAtleta_(props, athId, resultado.erro);
+        } else if (!resultado.rateLimitado) {
+          _qLimparFalhaAtleta_(props, athId);
+        }
+        if (resultado.rateLimitado) interrompido = true;
+        processados++;
+      } catch (e) {
+        _log(athId, 'ERRO', 'processarFilaStrava', e.message, '');
+        _qRegistrarFalhaAtleta_(props, athId, e.message);
+      }
+    }
+
+    if (typeof ordenarAtividadesMaisRecentes_ === 'function') {
+      ordenarAtividadesMaisRecentes_();
+    }
+    if (typeof ordenarStravaRawMaisRecentes_ === 'function') {
+      ordenarStravaRawMaisRecentes_();
+    }
+
+  // Avançar ponteiro
+    // Avança também após falha/backoff para um atleta não monopolizar a fila.
+    const novaPos = (posAtual + visitados) % Math.max(atletasAtivos.length, 1);
+    props.setProperty('Q_POS_FILA', String(novaPos));
+    const rateFinal = _qEstadoRate_(props);
+    _log('SISTEMA', 'INFO', 'processarFilaStrava',
+      'Ciclo: ' + processados + ' atletas | ' + reqUsadas +
+      ' req | ' + emBackoff + ' em espera protegida | Strava: ' +
+      rateFinal.uso15 + '/' + rateFinal.limite15 +
+      ' em 15min, ' + rateFinal.usoDia + '/' + rateFinal.limiteDia + ' no dia', '');
+  } finally {
+    _qLiberarExecucao_(execId);
+  }
+}
+
+function _qAtletaEmBackoff_(props, athId) {
+  const ate = Number(props.getProperty('Q_RETRY_AT_' + athId) || 0);
+  return ate > Date.now();
+}
+
+/**
+ * Após falhas repetidas, move o atleta para uma espera longa (DLQ lógica),
+ * mas volta a tentar automaticamente. Tokens e cursores nunca são apagados.
+ */
+function _qRegistrarFalhaAtleta_(props, athId, erro) {
+  const chave = 'Q_FAIL_' + athId;
+  const falhas = Number(props.getProperty(chave) || 0) + 1;
+  const atrasos = [15 * 60000, 60 * 60000, 6 * 3600000, 24 * 3600000];
+  const atraso = atrasos[Math.min(falhas - 1, atrasos.length - 1)];
+  const proxima = Date.now() + atraso;
+  props.setProperty(chave, String(falhas));
+  props.setProperty('Q_RETRY_AT_' + athId, String(proxima));
+  if (falhas >= Q_MAX_FALHAS_ANTES_DLQ) {
+    props.setProperty('Q_DLQ_' + athId, JSON.stringify({
+      falhas: falhas,
+      ultimaFalha: new Date().toISOString(),
+      proximaTentativa: new Date(proxima).toISOString(),
+      erro: String(erro || '').substring(0, 400)
+    }));
+    _log(athId, 'AVISO', '_qRegistrarFalhaAtleta_',
+      'Atleta isolado temporariamente após ' + falhas + ' falhas; nova tentativa automática agendada.', '');
+  }
+}
+
+function _qLimparFalhaAtleta_(props, athId) {
+  const haviaDlq = !!props.getProperty('Q_DLQ_' + athId);
+  props.deleteProperty('Q_FAIL_' + athId);
+  props.deleteProperty('Q_RETRY_AT_' + athId);
+  props.deleteProperty('Q_DLQ_' + athId);
+  if (haviaDlq) {
+    _log(athId, 'INFO', '_qLimparFalhaAtleta_', 'Atleta recuperado automaticamente e removido da espera protegida.', '');
+  }
+}
+
+// ── IMPORTAÇÃO HISTÓRICA PAGINADA ─────────────────────────────────────────────
+function _importarHistoricoPaginado(athId, paginaInicio, limitePaginas) {
+  let   accessToken = _getValidAccessToken(athId);
+  if (!accessToken) throw new Error('Nenhum access_token válido encontrado nas fontes de segurança.');
+  const nomeAtleta  = _getNomeAtleta(athId);
+  let   totalNovas  = 0;
+  let   rateLimitado = false;
+  let   requests = 0;
+  let   ultimaPagina = paginaInicio;
+  let   concluido = false;
+  let   erro = '';
+
+  const totalPaginas = Math.max(1, Number(limitePaginas) || Q_HIST_PAGINAS);
+  for (let pg = paginaInicio + 1; pg <= paginaInicio + totalPaginas; pg++) {
+    if (!_qTemCapacidade_(PropertiesService.getScriptProperties())) break;
+    const url  = STRAVA_API_BASE + '/athlete/activities?per_page=' + Q_PER_PAGE + '&page=' + pg;
+    let resp = UrlFetchApp.fetch(url, {
+      headers: { Authorization: 'Bearer ' + accessToken },
+      muteHttpExceptions: true
+    });
+    requests++;
+    _qRegistrarRate_(resp);
+
+    let code = resp.getResponseCode();
+    if (code === 401 && typeof _forcarRefreshAccessToken_ === 'function') {
+      // Um access_token pode ser recusado antes do expires_at. Tenta uma única
+      // renovação usando o refresh mais novo (Planilha/Properties/Supabase).
+      accessToken = _forcarRefreshAccessToken_(athId, accessToken);
+      if (accessToken) {
+        resp = UrlFetchApp.fetch(url, {
+          headers: { Authorization: 'Bearer ' + accessToken },
+          muteHttpExceptions: true
+        });
+        requests++;
+        _qRegistrarRate_(resp);
+        code = resp.getResponseCode();
+      }
+    }
+    if (code === 429) { rateLimitado = true; break; }
+    if (code !== 200) {
+      erro = 'Strava HTTP ' + code + ' na página ' + pg + '; cursor preservado.';
+      break;
+    }
+
+    const page = JSON.parse(resp.getContentText());
+    if (!Array.isArray(page)) {
+      erro = 'Resposta inesperada da Strava na página ' + pg + '; cursor preservado.';
+      break;
+    }
+    // Uma página curta não garante o fim; o Strava orienta iterar até vazio.
+    if (page.length === 0) {
+      concluido = true;
+      break;
+    }
+
+    totalNovas += _gravarAtividades(athId, nomeAtleta, page);
+    ultimaPagina = pg;
+  }
+
+  return { novas: totalNovas, rateLimitado, requests, ultimaPagina, concluido, erro };
+}
+
+// ── REGISTRAR ATLETA NOVO PARA IMPORTAÇÃO HISTÓRICA ──────────────────────────
+// Chamado automaticamente no callback OAuth (WebApp.gs)
+function registrarAtletaParaHistorico(athId) {
+  if (!_isAthIdValido_(athId)) return;
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('Q_HIST_' + athId, '0');
+  props.deleteProperty('Q_HIST_DONE_' + athId);
+  _log(athId, 'INFO', 'registrarAtletaParaHistorico', 'Importação histórica agendada', '');
+}
+
+/**
+ * Agenda uma única varredura completa para todos os tokens válidos existentes.
+ * Não reinicia atletas já concluídos e não altera nenhuma credencial.
+ */
+function agendarHistoricoCompletoTodos(reiniciarConcluidos) {
+  const props = PropertiesService.getScriptProperties();
+  const shTok = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.TOKENS);
+  if (!shTok) throw new Error('Aba TOKENS não encontrada.');
+
+  const dados = shTok.getDataRange().getValues();
+  const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function' ? _mapaUsoStravaCadastro_() : {};
+  const ids = new Set();
+  for (let i = 1; i < dados.length; i++) {
+    const athId = String(dados[i][H.TOK.ATH_ID - 1] || '').trim();
+    const status = String(dados[i][H.TOK.STATUS - 1] || '').trim().toLowerCase();
+    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente' &&
+        !(typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava))) ids.add(athId);
+  }
+
+  let agendados = 0;
+  let preservados = 0;
+  ids.forEach(athId => {
+    const histKey = 'Q_HIST_' + athId;
+    const doneKey = 'Q_HIST_DONE_' + athId;
+    if (!reiniciarConcluidos && (props.getProperty(histKey) !== null || props.getProperty(doneKey) !== null)) {
+      preservados++;
+      return;
+    }
+    props.setProperty(histKey, '0');
+    if (reiniciarConcluidos) props.deleteProperty(doneKey);
+    agendados++;
+  });
+
+  _log('SISTEMA', 'INFO', 'agendarHistoricoCompletoTodos',
+    agendados + ' atletas agendados; ' + preservados + ' cursores existentes preservados', '');
+  return { agendados, preservados, total: ids.size };
+}
+
+function iniciarImportacaoHistoricaCompleta() {
+  const ui = SpreadsheetApp.getUi();
+  const conf = ui.alert(
+    '⬇️ Importar histórico completo',
+    'O sistema percorrerá todas as páginas disponíveis do Strava, em lotes seguros.\n' +
+    'Atividades existentes serão deduplicadas e nenhum token será alterado manualmente.\n\nContinuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (conf !== ui.Button.YES) return;
+
+  const ag = agendarHistoricoCompletoTodos(true);
+  processarFilaStrava();
+  ui.alert(
+    '✅ Importação iniciada',
+    ag.total + ' atletas foram colocados na fila. O processo continuará automaticamente até a última página disponível.',
+    ui.ButtonSet.OK
+  );
+}
+
+function configurarAutomacaoPrincipal() {
+  configurarTriggers();
+}
+
+function diagnosticarMenuHiperativo() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const cad = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const tok = ss.getSheetByName(H.SHEETS.TOKENS);
+  const cadRows = cad ? cad.getDataRange().getValues().slice(2) : [];
+  const tokRows = tok ? tok.getDataRange().getValues().slice(1) : [];
+  const atletas = cadRows.filter(r => _isAthIdValido_(r[H.CAD.ID - 1])).length;
+  const tokens = tokRows.filter(r =>
+    _isAthIdValido_(r[H.TOK.ATH_ID - 1]) && _isRefreshTokenValido_(String(r[H.TOK.REFRESH - 1] || ''))
+  ).length;
+  const triggers = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+  const webApp = props.getProperty('WEBAPP_URL') || '';
+  const todasProps = props.getProperties();
+  const pendencias = Object.keys(todasProps).filter(k => /^Q_HIST_(?!DONE_)/.test(k)).length;
+  const isolados = Object.keys(todasProps).filter(k => /^Q_DLQ_/.test(k)).length;
+  const automacoes = typeof diagnosticarTriggersEssenciais === 'function'
+    ? diagnosticarTriggersEssenciais() : { ok: false, status: [] };
+  const linhas = [
+    '🩺 DIAGNÓSTICO HIPERATIVO',
+    'Atletas válidos: ' + atletas,
+    'Conexões com refresh token: ' + tokens,
+    'Históricos em andamento: ' + pendencias,
+    'Atletas em espera protegida: ' + isolados,
+    'Automações essenciais: ' + (automacoes.ok ? '6/6 ATIVAS' : 'REVISAR'),
+    'Supabase de segurança: ' + (props.getProperty('SUPABASE_KEY') ? 'CONFIGURADO' : 'NÃO CONFIGURADO'),
+    'WebApp: ' + (webApp ? 'CONFIGURADO' : 'NÃO CONFIGURADO'),
+    '',
+    webApp ? 'Cadastro: ' + webApp + '?cadastro=true' : '',
+    webApp ? 'Conexão Strava: ' + webApp + '?conectar=true' : ''
+  ].filter(Boolean);
+  ui.alert(linhas.join('\n'));
+  return { atletas, tokens, pendencias, isolados, automacoes: automacoes };
+}
+
+/**
+ * Inicializa automaticamente a primeira varredura histórica global depois da
+ * implantação desta versão. O marcador impede reagendamento em ciclos futuros.
+ */
+function _qAgendarBackfillGlobalUmaVez_(props) {
+  const marcador = 'Q_HIST_ALL_V3_RAW_UNIFICADO_AGENDADO_EM';
+  if (props.getProperty(marcador)) return;
+
+  const shTok = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(H.SHEETS.TOKENS);
+  if (!shTok) throw new Error('Aba TOKENS não encontrada.');
+  const dados = shTok.getDataRange().getValues();
+  const usoStrava = typeof _mapaUsoStravaCadastro_ === 'function' ? _mapaUsoStravaCadastro_() : {};
+  const ids = new Set();
+  for (let i = 1; i < dados.length; i++) {
+    const athId = String(dados[i][H.TOK.ATH_ID - 1] || '').trim();
+    const status = String(dados[i][H.TOK.STATUS - 1] || '').trim().toLowerCase();
+    if (_isAthIdValido_(athId) && status !== 'inativo' && status !== 'pendente' &&
+        !(typeof _cadastroNaoUsaStrava_ === 'function' && _cadastroNaoUsaStrava_(athId, usoStrava))) ids.add(athId);
+  }
+
+  ids.forEach(athId => {
+    props.setProperty('Q_HIST_' + athId, '0');
+    props.deleteProperty('Q_HIST_DONE_' + athId);
+  });
+  if (typeof sincronizarTokensParaSupabase === 'function') {
+    sincronizarTokensParaSupabase();
+  }
+  props.setProperty(marcador, new Date().toISOString());
+  _log('SISTEMA', 'INFO', '_qAgendarBackfillGlobalUmaVez_',
+    'Backfill RAW unificado inicializado para ' + ids.size + ' atletas conectados', '');
+}
+
+// ── STATUS DA FILA (menu → diagnóstico) ──────────────────────────────────────
+function statusFila() {
+  const props   = PropertiesService.getScriptProperties();
+  const rate      = _qEstadoRate_(props);
+  const pos        = props.getProperty('Q_POS_FILA') || '0';
+  const allProps   = props.getProperties();
+
+  const histPendentes = Object.keys(allProps)
+    .filter(k => /^Q_HIST_(?!DONE_)/.test(k))
+    .map(k => '  • ' + k.replace('Q_HIST_', '') + ' (pág. ' + allProps[k] + ')');
+  const isolados = Object.keys(allProps)
+    .filter(k => k.startsWith('Q_DLQ_'))
+    .map(k => '  • ' + k.replace('Q_DLQ_', ''));
+
+  const linhas = [
+    '📊 STATUS DA FILA STRAVA',
+    '─────────────────────────',
+    'Req hoje:       ' + rate.usoDia + '/' + rate.limiteDia +
+      ' (' + Math.round(rate.usoDia / rate.limiteDia * 100) + '%)',
+    'Req (15min):    ' + rate.uso15 + '/' + rate.limite15,
+    'Posição fila:   ' + pos,
+    '',
+    'Histórico pendente (' + histPendentes.length + '):',
+    histPendentes.length ? histPendentes.join('\n') : '  Nenhum.',
+    '',
+    'Espera protegida após falhas (' + isolados.length + '):',
+    isolados.length ? isolados.join('\n') : '  Nenhum.',
+    '',
+    'A fila respeita a margem de segurança informada pela própria Strava.',
+  ];
+
+  try { SpreadsheetApp.getUi().alert(linhas.join('\n')); } catch(_) { Logger.log(linhas.join('\n')); }
+}
+
+// ── RESETAR CONTADORES (debug) ────────────────────────────────────────────────
+function resetarContadoresFila() {
+  const props = PropertiesService.getScriptProperties();
+  const all   = props.getProperties();
+  Object.keys(all)
+    .filter(k => k.startsWith('Q_DIA_') || k.startsWith('Q_15M_') || k.startsWith('Q_RATE_'))
+    .forEach(k => props.deleteProperty(k));
+  _log('SISTEMA', 'INFO', 'resetarContadoresFila', 'Contadores zerados', '');
+  try { SpreadsheetApp.getUi().alert('✅ Contadores de rate limit zerados.'); } catch(_) {}
+}
+
+// ── RATE LIMIT REAL (HEADERS STRAVA) ────────────────────────────────────────
+
+function _qEstadoRate_(props) {
+  const agora = Date.now();
+  const slotAtual = String(Math.floor(agora / (15 * 60 * 1000)));
+  const diaAtual = Utilities.formatDate(new Date(agora), 'UTC', 'yyyy-MM-dd');
+  const mesmoSlot = props.getProperty('Q_RATE_SLOT') === slotAtual;
+  const mesmoDia = props.getProperty('Q_RATE_DAY') === diaAtual;
+
+  return {
+    limite15: Math.max(1, parseInt(props.getProperty('Q_RATE_LIMIT_15') || Q_LIMITE_15MIN_FALLBACK, 10)),
+    limiteDia: Math.max(1, parseInt(props.getProperty('Q_RATE_LIMIT_DIA') || Q_LIMITE_DIA_FALLBACK, 10)),
+    uso15: mesmoSlot ? Math.max(0, parseInt(props.getProperty('Q_RATE_USAGE_15') || '0', 10)) : 0,
+    usoDia: mesmoDia ? Math.max(0, parseInt(props.getProperty('Q_RATE_USAGE_DIA') || '0', 10)) : 0,
+    slot: slotAtual,
+    dia: diaAtual,
+  };
+}
+
+function _qTemCapacidade_(props) {
+  const rate = _qEstadoRate_(props);
+  const margem15 = Math.max(5, Math.ceil(rate.limite15 * 0.10));
+  const margemDia = Math.max(50, Math.ceil(rate.limiteDia * 0.10));
+  return rate.uso15 < rate.limite15 - margem15 &&
+    rate.usoDia < rate.limiteDia - margemDia;
+}
+
+function _qRegistrarRate_(resp) {
+  const props = PropertiesService.getScriptProperties();
+  const rateAtual = _qEstadoRate_(props);
+  let headers = {};
+  try { headers = resp.getAllHeaders ? resp.getAllHeaders() : resp.getHeaders(); } catch (_) { }
+
+  const limites = _qParseParHeader_(headers, 'X-ReadRateLimit-Limit') ||
+    _qParseParHeader_(headers, 'X-RateLimit-Limit');
+  const usos = _qParseParHeader_(headers, 'X-ReadRateLimit-Usage') ||
+    _qParseParHeader_(headers, 'X-RateLimit-Usage');
+
+  props.setProperties({
+    Q_RATE_SLOT: rateAtual.slot,
+    Q_RATE_DAY: rateAtual.dia,
+    Q_RATE_LIMIT_15: String(limites ? limites[0] : rateAtual.limite15),
+    Q_RATE_LIMIT_DIA: String(limites ? limites[1] : rateAtual.limiteDia),
+    Q_RATE_USAGE_15: String(usos ? usos[0] : rateAtual.uso15 + 1),
+    Q_RATE_USAGE_DIA: String(usos ? usos[1] : rateAtual.usoDia + 1),
+  }, false);
+}
+
+function _qParseParHeader_(headers, nome) {
+  const chave = Object.keys(headers || {}).find(k => String(k).toLowerCase() === nome.toLowerCase());
+  if (!chave) return null;
+  const partes = String(headers[chave]).split(',').map(v => parseInt(v.trim(), 10));
+  return partes.length >= 2 && partes.every(Number.isFinite) ? partes : null;
+}
+
+// Evita que dois gatilhos percorram a mesma página ao mesmo tempo. O lease tem
+// validade limitada, então uma execução interrompida não trava a fila para sempre.
+function _qAdquirirExecucao_() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return null;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const agora = Date.now();
+    const ate = Number(props.getProperty('Q_EXEC_UNTIL') || 0);
+    if (ate > agora) return null;
+    const execId = Utilities.getUuid();
+    props.setProperties({
+      Q_EXEC_OWNER: execId,
+      Q_EXEC_UNTIL: String(agora + Q_LEASE_MS),
+    }, false);
+    return execId;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function _qLiberarExecucao_(execId) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('Q_EXEC_OWNER') === execId) {
+      props.deleteProperty('Q_EXEC_OWNER');
+      props.deleteProperty('Q_EXEC_UNTIL');
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── LIMPAR CHAVES ANTIGAS ─────────────────────────────────────────────────────
+function _limparChavesAnteriores(props, hojeStr, janelaAtual) {
+  try {
+    const all = props.getProperties();
+    Object.keys(all).forEach(k => {
+      if (k.startsWith('Q_DIA_') && !k.endsWith(hojeStr)) props.deleteProperty(k);
+      if (k.startsWith('Q_15M_')) {
+        const j = parseInt(k.replace('Q_15M_', ''));
+        if (janelaAtual - j > 12) props.deleteProperty(k); // mais de 3h atrás
+      }
+    });
+  } catch(_) {}
+}
