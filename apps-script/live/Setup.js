@@ -413,6 +413,11 @@ function _aplicarFormatacaoCadastroCond(ws) {
   _condTexto(ws, 'X4:X500', 'Pendente',   COR.amarelo_cl);
   _condTexto(ws, 'X4:X500', 'Reconectar', '#FFE0B2');
   _condTexto(ws, 'X4:X500', 'Não',        COR.vermelho_cl);
+  // Conexão Strava — estado operacional real (col 50 = AX)
+  _condTexto(ws, 'AX4:AX500', 'Conectado',          COR.verde_claro);
+  _condTexto(ws, 'AX4:AX500', 'Aguardando conexão',  COR.amarelo_cl);
+  _condTexto(ws, 'AX4:AX500', 'Não utiliza',         '#E8E8E8');
+  _condTexto(ws, 'AX4:AX500', 'Reconectar',          COR.vermelho_cl);
   // PAR-Q alerta (col 31 = AE): se contiver S → destaque
   const regraParq = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('S')
@@ -513,6 +518,29 @@ function reformatarCabecalhoCadastro() {
   } catch(_) {}
 }
 
+
+/**
+ * Aplica a cor condicional da Conexão Strava (AX) e reafirma o
+ * congelamento de cabeçalho + coluna Nome no CADASTRO, sem tocar em
+ * dados, dropdowns ou zebra já existentes. Seguro para rodar quantas
+ * vezes quiser — só reaplica regras de formatação.
+ * Menu: ⚡ HIPERATIVO ▸ 🏃 Atividades ▸ Congelar cabeçalho/Nome + cor Conexão Strava
+ */
+function aplicarCorConexaoStrava() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ws = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!ws) { SpreadsheetApp.getUi().alert('Aba CADASTRO não encontrada.'); return; }
+  _aplicarFormatacaoCadastroCond(ws);
+  _congelar(ws, 3, 2);
+  try {
+    SpreadsheetApp.getUi().alert(
+      '✅ Cor da Conexão Strava aplicada',
+      'Coluna AX (Conexão Strava) agora tem cor por status.\n' +
+      'Cabeçalho (3 linhas) e colunas ID+Nome permanecem congelados ao rolar.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } catch(_) {}
+}
 
 // COMPAT: manter _criarCadastroLegacy para referência — não usado no setup principal
 function _criarCadastroLegado_27cols(ws) {

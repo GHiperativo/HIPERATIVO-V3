@@ -248,6 +248,7 @@ function onOpen() {
       .addItem('⚡ Atualizar painel inteligente', 'aplicarAtualizacaoVisualOperacional')
       .addItem('📊 Atualizar painel geral', 'atualizarPainel')
       .addItem('🎨 Reaplicar tema visual das abas', 'aplicarTemaAbasOperacionais_')
+      .addItem('❄️ Congelar cabeçalho/Nome + cor Conexão Strava (CADASTRO)', 'aplicarCorConexaoStrava')
       .addItem('🧹 Reparar fórmulas operacionais', 'repararFormulasOperacionais')
       .addSeparator()
       .addItem('🗂️ Organizar extrações (RAW + convertidas)', 'organizarExtracoesStrava')

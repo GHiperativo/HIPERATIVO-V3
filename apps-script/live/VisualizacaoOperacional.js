@@ -360,7 +360,15 @@ function _visDesenharPainel_(ss, ws, m) {
     linhasCon.push(p ? [p.nome, p.rotulo, p.detalhe, acao, p.id] : ['', '', '', '', '']);
   }
   ws.getRange(27, 8, 10, 5).setValues(linhasCon).setFontSize(8).setWrap(true).setVerticalAlignment('middle');
-  _visZebra_(ws, 27, 36, 8, 5);
+  for (var cr = 0; cr < 10; cr++) {
+    var p2 = problemas[cr];
+    var fundoCon = !p2 ? c.branco
+      : p2.tipo === 'revogado' ? c.vermelhoClaro
+      : p2.tipo === 'erro' ? c.amareloClaro
+      : p2.tipo === 'pendente' ? '#FFE0B2'
+      : c.claro;
+    ws.getRange(27 + cr, 8, 1, 5).setBackground(fundoCon);
+  }
   ws.getRange('H38:L39').merge().setValue('Regra de segurança: falha temporária nunca gera pedido de reconexão. Reconexão só aparece após revogação oficial ou ausência real de refresh token.')
     .setBackground(c.azulClaro).setFontColor(c.azul).setFontSize(8).setFontStyle('italic').setWrap(true).setVerticalAlignment('middle');
 
