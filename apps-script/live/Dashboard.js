@@ -631,43 +631,59 @@ function migrarFormatacaoAtividades() {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// RANKINGS EXPANDIDOS — 8 categorias consolidadas numa aba rica
+// RANKINGS EXPANDIDOS — categorias consolidadas numa aba rica
 // Chamado pelo trigger e pelo menu
 // ══════════════════════════════════════════════════════════════════════════════
-function atualizarRankingExpandido() {
-  const ss     = SpreadsheetApp.getActiveSpreadsheet();
+function _idadeDe_(dataNasc, agora) {
+  if (!(dataNasc instanceof Date) || isNaN(dataNasc.getTime())) return null;
+  var idade = agora.getFullYear() - dataNasc.getFullYear();
+  var m = agora.getMonth() - dataNasc.getMonth();
+  if (m < 0 || (m === 0 && agora.getDate() < dataNasc.getDate())) idade--;
+  return idade;
+}
+
+function _faixaEtaria_(idade) {
+  if (idade == null || idade <= 0) return '—';
+  if (idade < 20) return 'Até 19';
+  if (idade < 30) return '20-29';
+  if (idade < 40) return '30-39';
+  if (idade < 50) return '40-49';
+  if (idade < 60) return '50-59';
+  return '60+';
+}
+
+function _calcularStreakDias_(diasSet, agora, tz) {
+  var streak = 0;
+  var cursor = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  if (!diasSet.has(Utilities.formatDate(cursor, tz, 'yyyy-MM-dd'))) cursor = new Date(cursor.getTime() - 86400000);
+  while (diasSet.has(Utilities.formatDate(cursor, tz, 'yyyy-MM-dd'))) {
+    streak++;
+    cursor = new Date(cursor.getTime() - 86400000);
+  }
+  return streak;
+}
+
+/**
+ * Única fonte de cálculo dos rankings — usada pela aba interna
+ * (🏆 RANKING COMPLETO) e pela página pública divertida. Qualquer
+ * categoria nova entra aqui uma vez só, nunca duplicada.
+ */
+function _construirBaseRankings_(ss) {
+  const tz     = Session.getScriptTimeZone();
   const shAtiv = ss.getSheetByName(H.SHEETS.ATIVIDADES);
   const shMet  = ss.getSheetByName(H.SHEETS.METRICAS);
-  if (!shAtiv) return;
+  const shCad  = ss.getSheetByName(H.SHEETS.CADASTRO);
+  const agora  = new Date();
+  if (!shAtiv) return { ats: [], agora: agora };
 
-  let shRE = ss.getSheetByName('🏆 RANKING COMPLETO');
-  if (!shRE) shRE = ss.insertSheet('🏆 RANKING COMPLETO');
-  shRE.getRange(1, 1, Math.max(shRE.getLastRow(), 4), shRE.getMaxColumns()).breakApart();
-  shRE.clearContents();
-  shRE.setFrozenRows(2);
-
-  const corAzul  = '#001F3F';
   const dados    = shAtiv.getDataRange().getValues().slice(2);
   const metDados = shMet ? shMet.getDataRange().getValues().slice(2) : [];
-  const agora    = new Date();
-  const d30  = new Date(agora.getTime() - 30  * 86400000);
-  const d90  = new Date(agora.getTime() - 90  * 86400000);
-  const d28  = new Date(agora.getTime() - 28  * 86400000);
-  const ts   = Utilities.formatDate(agora, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  const cadDados = shCad ? shCad.getDataRange().getValues().slice(2) : [];
+  const d30 = new Date(agora.getTime() - 30 * 86400000);
+  const d60 = new Date(agora.getTime() - 60 * 86400000);
+  const d90 = new Date(agora.getTime() - 90 * 86400000);
+  const FORCA_FUNCIONAL = { 'Musculação':1, 'HIIT':1, 'Crossfit':1, 'Treino':1, 'Funcional':1 };
 
-  // Cabeçalho geral
-  shRE.getRange(1, 1, 1, 8).merge()
-    .setValue('🏆 RANKING COMPLETO — GRUPO HIPERATIVO')
-    .setFontWeight('bold').setFontColor('#FFFFFF').setBackground(corAzul)
-    .setFontSize(14).setHorizontalAlignment('center');
-  shRE.setRowHeight(1, 38);
-  shRE.getRange(2, 1, 1, 8).merge()
-    .setValue('Atualizado: ' + ts)
-    .setFontStyle('italic').setFontSize(9).setFontColor('#666')
-    .setHorizontalAlignment('center').setBackground('#F9F9F9');
-  shRE.setRowHeight(2, 20);
-
-  // ── Construir mapa por atleta ─────────────────────────────────────────────
   const mapa = {};
   dados.forEach(row => {
     const athId = String(row[H.ATIV.ATH_ID  - 1] || '').trim();
@@ -678,16 +694,20 @@ function atualizarRankingExpandido() {
     const paceS = Number(row[H.ATIV.PACE_S  - 1]) || 0;
     const elev  = Number(row[H.ATIV.ELEV    - 1]) || 0;
     const pse   = Number(row[H.ATIV.PSE     - 1]) || 0;
-    if (!_isAthIdValido_(athId) || !(data instanceof Date)) return;
+    if (!_isAthIdValido_(athId) || !(data instanceof Date) || isNaN(data.getTime())) return;
 
     if (!mapa[athId]) mapa[athId] = {
       nome, athId,
-      km30:0, km90:0, kmTotal:0,
+      km30:0, km90:0, kmTotal:0, kmPrev30:0,
+      kmCorrida30:0, kmCaminhada30:0, kmCiclismo30:0,
       treinos30:0, treinos90:0, treinosTotal:0,
+      forcaFuncional30:0,
       tiposMap:{}, // {Corrida:N, Ciclismo:N, ...}
       melhoresPace:[], // paces válidos (s/km) das corridas
       elev30:0, elevTotal:0,
-      pseTotal:0, pseCount:0,
+      pseTotal:0, pseCount:0, pseLeve30:0,
+      madrugada30:0, coruja30:0, fimDeSemana30:0,
+      diasSet:new Set(),
       ultimoTreino:null,
       semanasAtivas: new Set(),
     };
@@ -699,15 +719,27 @@ function atualizarRankingExpandido() {
     m.elevTotal += elev;
     if (!m.ultimoTreino || data > m.ultimoTreino) m.ultimoTreino = data;
 
-    const semana = Utilities.formatDate(data, Session.getScriptTimeZone(), 'yyyy-ww');
+    const semana = Utilities.formatDate(data, tz, 'yyyy-ww');
     m.semanasAtivas.add(semana);
-
     if (pse > 0) { m.pseTotal += pse; m.pseCount++; }
 
     if (data >= d30) {
       m.km30     += km;
       m.elev30   += elev;
       m.treinos30++;
+      if (tipo === 'Corrida' || tipo === 'Trail Run') m.kmCorrida30 += km;
+      if (tipo === 'Caminhada') m.kmCaminhada30 += km;
+      if (tipo === 'Ciclismo') m.kmCiclismo30 += km;
+      if (FORCA_FUNCIONAL[tipo]) m.forcaFuncional30++;
+      const hora = data.getHours();
+      if (hora < 6) m.madrugada30++;
+      if (hora >= 20) m.coruja30++;
+      const dow = data.getDay();
+      if (dow === 0 || dow === 6) m.fimDeSemana30++;
+      if (pse > 0 && pse <= 4) m.pseLeve30++;
+      m.diasSet.add(Utilities.formatDate(data, tz, 'yyyy-MM-dd'));
+    } else if (data >= d60) {
+      m.kmPrev30 += km;
     }
     if (data >= d90) {
       m.km90     += km;
@@ -728,24 +760,78 @@ function atualizarRankingExpandido() {
     if (_isAthIdValido_(id) && vo2 > 0) vo2Map[id] = vo2;
   });
 
-  // Converter set em número
-  Object.values(mapa).forEach(m => {
-    m.semanasAtivasN = m.semanasAtivas.size;
-    m.km30     = Math.round(m.km30     * 10) / 10;
-    m.km90     = Math.round(m.km90     * 10) / 10;
-    m.elev30   = Math.round(m.elev30);
-    m.elevTotal= Math.round(m.elevTotal);
-    m.pseMed   = m.pseCount > 0 ? Math.round(m.pseTotal / m.pseCount * 10) / 10 : null;
-    m.melhorPace = m.melhoresPace.length ? Math.min(...m.melhoresPace) : null;
-    m.vo2      = vo2Map[m.athId] || 0;
+  // Sexo, idade e opção de participar do ranking público — aba CADASTRO
+  const cadPorId = {};
+  cadDados.forEach(row => {
+    const id = String(row[H.CAD.ID - 1] || '').trim().toUpperCase();
+    if (!id) return;
+    cadPorId[id] = {
+      sexo: String(row[H.CAD.SEXO - 1] || '').trim(),
+      dataNasc: row[H.CAD.NASC - 1],
+      participar: String(row[H.CAD.PARTICIPAR_RANKING - 1] || '').trim()
+    };
   });
 
-  const ats = Object.values(mapa);
+  // Converter set em número + campos derivados
+  Object.values(mapa).forEach(m => {
+    m.semanasAtivasN = m.semanasAtivas.size;
+    m.km30      = Math.round(m.km30      * 10) / 10;
+    m.km90      = Math.round(m.km90      * 10) / 10;
+    m.kmCorrida30   = Math.round(m.kmCorrida30   * 10) / 10;
+    m.kmCaminhada30 = Math.round(m.kmCaminhada30 * 10) / 10;
+    m.kmCiclismo30  = Math.round(m.kmCiclismo30  * 10) / 10;
+    m.elev30    = Math.round(m.elev30);
+    m.elevTotal = Math.round(m.elevTotal);
+    m.pseMed    = m.pseCount > 0 ? Math.round(m.pseTotal / m.pseCount * 10) / 10 : null;
+    m.melhorPace = m.melhoresPace.length ? Math.min(...m.melhoresPace) : null;
+    m.vo2       = vo2Map[m.athId] || 0;
+    m.elevPorKm = m.kmTotal > 0 ? Math.round((m.elevTotal / m.kmTotal) * 10) / 10 : 0;
+    m.streak    = _calcularStreakDias_(m.diasSet, agora, tz);
+    m.crescimento30 = m.kmPrev30 > 0 ? Math.round(((m.km30 - m.kmPrev30) / m.kmPrev30) * 100) : (m.km30 > 0 ? null : 0);
+
+    const cad = cadPorId[m.athId.toUpperCase()] || {};
+    m.sexo = cad.sexo || '—';
+    m.idade = _idadeDe_(cad.dataNasc, agora);
+    m.faixaEtaria = _faixaEtaria_(m.idade);
+    m.participar = cad.participar !== 'Não'; // default: participa (opt-out), combinado com o usuário
+  });
+
+  return { ats: Object.values(mapa), agora: agora };
+}
+
+function atualizarRankingExpandido() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(H.SHEETS.ATIVIDADES)) return;
+  const base  = _construirBaseRankings_(ss);
+  const ats   = base.ats;
+  const agora = base.agora;
+
+  let shRE = ss.getSheetByName('🏆 RANKING COMPLETO');
+  if (!shRE) shRE = ss.insertSheet('🏆 RANKING COMPLETO');
+  shRE.getRange(1, 1, Math.max(shRE.getLastRow(), 4), shRE.getMaxColumns()).breakApart();
+  shRE.clearContents();
+  shRE.setFrozenRows(2);
+
+  const corAzul  = '#001F3F';
+  const ts   = Utilities.formatDate(agora, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+
+  // Cabeçalho geral
+  shRE.getRange(1, 1, 1, 8).merge()
+    .setValue('🏆 RANKING COMPLETO — GRUPO HIPERATIVO')
+    .setFontWeight('bold').setFontColor('#FFFFFF').setBackground(corAzul)
+    .setFontSize(14).setHorizontalAlignment('center');
+  shRE.setRowHeight(1, 38);
+  shRE.getRange(2, 1, 1, 8).merge()
+    .setValue('Atualizado: ' + ts + '  •  ' + ats.length + ' atletas')
+    .setFontStyle('italic').setFontSize(9).setFontColor('#666')
+    .setHorizontalAlignment('center').setBackground('#F9F9F9');
+  shRE.setRowHeight(2, 20);
 
   let linha = 3; // linha atual na aba
 
-  // ── Helper: escrever uma seção de ranking ───────────────────────────────
-  const escreverRanking = (titulo, itens, colunas, cor) => {
+  // ── Helper: escrever uma seção de ranking (padrão: Top 10) ──────────────
+  const escreverRanking = (titulo, itens, colunas, cor, topN) => {
+    topN = topN || 10;
     shRE.getRange(linha, 1, 1, 8).merge()
       .setValue(titulo)
       .setFontWeight('bold').setFontColor('#FFFFFF').setBackground(cor || '#003D7A')
@@ -764,7 +850,7 @@ function atualizarRankingExpandido() {
       shRE.getRange(linha, 1).setValue('Sem dados suficientes.');
       linha++;
     } else {
-      itens.slice(0, 15).forEach((it, i) => {
+      itens.slice(0, topN).forEach((it, i) => {
         const vals = colunas.map(c => c.valor(it, i));
         shRE.getRange(linha, 1, 1, vals.length).setValues([vals]).setFontSize(10);
         const bg = i === 0 ? '#FFF9C4' : i === 1 ? '#F5F5F5' : i === 2 ? '#FFF3E0' : (i % 2 === 0 ? '#FFFFFF' : '#F0F7FF');
@@ -869,8 +955,158 @@ function atualizarRankingExpandido() {
       { titulo:'Último Treino', valor:(it)   => fmtData(it.ultimoTreino) },
     ], '#37474F');
 
+  // ── 9-10. Número de atividades ───────────────────────────────────────────
+  escreverRanking('🔢 NÚMERO DE ATIVIDADES — 30 DIAS',
+    ats.filter(a => a.treinos30 > 0).sort((a,b) => b.treinos30 - a.treinos30),
+    [
+      { titulo:'#',            valor:(it,i) => pos(i) },
+      { titulo:'Atleta',       valor:(it)   => it.nome || it.athId },
+      { titulo:'Atividades (30d)', valor:(it) => it.treinos30 },
+      { titulo:'km (30d)',     valor:(it)   => it.km30 },
+    ], '#5D4037');
+
+  escreverRanking('🔢 NÚMERO DE ATIVIDADES — HISTÓRICO',
+    ats.filter(a => a.treinosTotal > 0).sort((a,b) => b.treinosTotal - a.treinosTotal),
+    [
+      { titulo:'#',              valor:(it,i) => pos(i) },
+      { titulo:'Atleta',         valor:(it)   => it.nome || it.athId },
+      { titulo:'Total Atividades', valor:(it) => it.treinosTotal },
+    ], '#5D4037');
+
+  // ── 11. Volume de corrida — 30 dias (TOP 20) ─────────────────────────────
+  escreverRanking('🏃 VOLUME DE CORRIDA — 30 DIAS',
+    ats.filter(a => a.kmCorrida30 > 0).sort((a,b) => b.kmCorrida30 - a.kmCorrida30),
+    [
+      { titulo:'#',                valor:(it,i) => pos(i) },
+      { titulo:'Atleta',           valor:(it)   => it.nome || it.athId },
+      { titulo:'km Corrida (30d)', valor:(it)   => it.kmCorrida30 },
+      { titulo:'Gênero',           valor:(it)   => it.sexo },
+    ], '#1565C0', 20);
+
+  // ── 12. Volume de caminhada — 30 dias ────────────────────────────────────
+  escreverRanking('🚶 VOLUME DE CAMINHADA — 30 DIAS',
+    ats.filter(a => a.kmCaminhada30 > 0).sort((a,b) => b.kmCaminhada30 - a.kmCaminhada30),
+    [
+      { titulo:'#',                  valor:(it,i) => pos(i) },
+      { titulo:'Atleta',             valor:(it)   => it.nome || it.athId },
+      { titulo:'km Caminhada (30d)', valor:(it)   => it.kmCaminhada30 },
+    ], '#00838F');
+
+  // ── 13. Volume de ciclismo — 30 dias ─────────────────────────────────────
+  escreverRanking('🚴 VOLUME DE CICLISMO — 30 DIAS',
+    ats.filter(a => a.kmCiclismo30 > 0).sort((a,b) => b.kmCiclismo30 - a.kmCiclismo30),
+    [
+      { titulo:'#',                 valor:(it,i) => pos(i) },
+      { titulo:'Atleta',            valor:(it)   => it.nome || it.athId },
+      { titulo:'km Ciclismo (30d)', valor:(it)   => it.kmCiclismo30 },
+    ], '#6A1B9A');
+
+  // ── 14. Treino de força & funcional (Musculação/HIIT/Crossfit/Funcional) ─
+  escreverRanking('🏋️ TREINO DE FORÇA & FUNCIONAL — 30 DIAS',
+    ats.filter(a => a.forcaFuncional30 > 0).sort((a,b) => b.forcaFuncional30 - a.forcaFuncional30),
+    [
+      { titulo:'#',              valor:(it,i) => pos(i) },
+      { titulo:'Atleta',         valor:(it)   => it.nome || it.athId },
+      { titulo:'Sessões (30d)',  valor:(it)   => it.forcaFuncional30 },
+    ], '#BF360C');
+
+  // ── 15. Madrugador(a) ─────────────────────────────────────────────────────
+  escreverRanking('🌅 MADRUGADOR(A) — TREINOS ANTES DAS 6H (30d)',
+    ats.filter(a => a.madrugada30 > 0).sort((a,b) => b.madrugada30 - a.madrugada30),
+    [
+      { titulo:'#',                    valor:(it,i) => pos(i) },
+      { titulo:'Atleta',               valor:(it)   => it.nome || it.athId },
+      { titulo:'Treinos antes das 6h', valor:(it)   => it.madrugada30 },
+    ], '#F9A825');
+
+  // ── 16. Coruja ────────────────────────────────────────────────────────────
+  escreverRanking('🌙 CORUJA — TREINOS APÓS 20H (30d)',
+    ats.filter(a => a.coruja30 > 0).sort((a,b) => b.coruja30 - a.coruja30),
+    [
+      { titulo:'#',               valor:(it,i) => pos(i) },
+      { titulo:'Atleta',          valor:(it)   => it.nome || it.athId },
+      { titulo:'Treinos após 20h', valor:(it)  => it.coruja30 },
+    ], '#283593');
+
+  // ── 17. Guerreiro(a) de fim de semana ─────────────────────────────────────
+  escreverRanking('📅 GUERREIRO(A) DE FIM DE SEMANA (30d)',
+    ats.filter(a => a.fimDeSemana30 > 0).sort((a,b) => b.fimDeSemana30 - a.fimDeSemana30),
+    [
+      { titulo:'#',             valor:(it,i) => pos(i) },
+      { titulo:'Atleta',        valor:(it)   => it.nome || it.athId },
+      { titulo:'Treinos sáb/dom', valor:(it) => it.fimDeSemana30 },
+    ], '#00695C');
+
+  // ── 18. Sequência ativa (streak de dias consecutivos) ────────────────────
+  escreverRanking('🔥 SEQUÊNCIA ATIVA (DIAS CONSECUTIVOS)',
+    ats.filter(a => a.streak > 0).sort((a,b) => b.streak - a.streak),
+    [
+      { titulo:'#',           valor:(it,i) => pos(i) },
+      { titulo:'Atleta',      valor:(it)   => it.nome || it.athId },
+      { titulo:'Dias seguidos', valor:(it) => it.streak },
+    ], '#D84315');
+
+  // ── 19. Rei/Rainha da Montanha (elevação por km) ─────────────────────────
+  escreverRanking('🏔️ REI/RAINHA DA MONTANHA (ELEVAÇÃO POR KM)',
+    ats.filter(a => a.kmTotal >= 5 && a.elevPorKm > 0).sort((a,b) => b.elevPorKm - a.elevPorKm),
+    [
+      { titulo:'#',                valor:(it,i) => pos(i) },
+      { titulo:'Atleta',           valor:(it)   => it.nome || it.athId },
+      { titulo:'m de elevação/km', valor:(it)   => it.elevPorKm },
+    ], '#4E342E');
+
+  // ── 20. Comeback do mês (crescimento vs. mês anterior) ───────────────────
+  escreverRanking('🎽 COMEBACK DO MÊS (CRESCIMENTO VS. MÊS ANTERIOR)',
+    ats.filter(a => a.crescimento30 !== null && a.crescimento30 >= 20 && a.km30 > 0).sort((a,b) => b.crescimento30 - a.crescimento30),
+    [
+      { titulo:'#',            valor:(it,i) => pos(i) },
+      { titulo:'Atleta',       valor:(it)   => it.nome || it.athId },
+      { titulo:'Crescimento',  valor:(it)   => it.crescimento30 + '%' },
+      { titulo:'km (30d)',     valor:(it)   => it.km30 },
+    ], '#AD1457');
+
+  // ── 21. Regenerativo consciente (treinos leves, PSE ≤ 4) ─────────────────
+  escreverRanking('🐢 REGENERATIVO CONSCIENTE (TREINOS LEVES)',
+    ats.filter(a => a.pseLeve30 > 0).sort((a,b) => b.pseLeve30 - a.pseLeve30),
+    [
+      { titulo:'#',                     valor:(it,i) => pos(i) },
+      { titulo:'Atleta',                valor:(it)   => it.nome || it.athId },
+      { titulo:'Treinos leves (PSE≤4)', valor:(it)   => it.pseLeve30 },
+    ], '#33691E');
+
+  // ── 22-23. Recorte por gênero — corrida 30 dias ──────────────────────────
+  escreverRanking('🚺 TOP CORRIDA 30 DIAS — FEMININO',
+    ats.filter(a => a.sexo === 'Feminino' && a.kmCorrida30 > 0).sort((a,b) => b.kmCorrida30 - a.kmCorrida30),
+    [
+      { titulo:'#',                valor:(it,i) => pos(i) },
+      { titulo:'Atleta',           valor:(it)   => it.nome || it.athId },
+      { titulo:'km Corrida (30d)', valor:(it)   => it.kmCorrida30 },
+    ], '#C2185B');
+
+  escreverRanking('🚹 TOP CORRIDA 30 DIAS — MASCULINO',
+    ats.filter(a => a.sexo === 'Masculino' && a.kmCorrida30 > 0).sort((a,b) => b.kmCorrida30 - a.kmCorrida30),
+    [
+      { titulo:'#',                valor:(it,i) => pos(i) },
+      { titulo:'Atleta',           valor:(it)   => it.nome || it.athId },
+      { titulo:'km Corrida (30d)', valor:(it)   => it.kmCorrida30 },
+    ], '#1976D2');
+
+  // ── 24. Líder por faixa etária — corrida 30 dias ─────────────────────────
+  const faixasOrdem = ['Até 19','20-29','30-39','40-49','50-59','60+'];
+  const lideresPorFaixa = faixasOrdem.map(fx => {
+    const doFaixa = ats.filter(a => a.faixaEtaria === fx && a.kmCorrida30 > 0).sort((a,b) => b.kmCorrida30 - a.kmCorrida30);
+    return doFaixa[0] ? { faixa: fx, atleta: doFaixa[0] } : null;
+  }).filter(Boolean);
+  escreverRanking('🎂 LÍDER POR FAIXA ETÁRIA — CORRIDA (30d)',
+    lideresPorFaixa,
+    [
+      { titulo:'Faixa',            valor:(it) => it.faixa },
+      { titulo:'Líder',            valor:(it) => it.atleta.nome || it.atleta.athId },
+      { titulo:'km Corrida (30d)', valor:(it) => it.atleta.kmCorrida30 },
+    ], '#37474F', faixasOrdem.length);
+
   // Ajustar larguras de coluna
   [6, 22, 12, 14, 14, 14, 14, 14].forEach((w, i) => shRE.setColumnWidth(i + 1, w * 7));
   SpreadsheetApp.flush();
-  _log('SISTEMA', 'INFO', 'atualizarRankingExpandido', 'Rankings expandidos atualizados. ' + ats.length + ' atletas.', '');
+  _log('SISTEMA', 'INFO', 'atualizarRankingExpandido', 'Rankings expandidos atualizados. ' + ats.length + ' atletas, 24 categorias.', '');
 }

@@ -37,6 +37,11 @@ function doGet(e) {
     return _paginaAtleta(p.atleta.toUpperCase().trim());
   }
 
+  // Ranking divertido público (?ranking=true) — só atletas com AZ != "Não"
+  if (p.ranking === 'true') {
+    return _paginaRankingPublico();
+  }
+
   // Processar formulário de cadastro (POST via form)
   if (p.salvar === 'true') {
     return _processarFormCadastro(p);
@@ -440,6 +445,96 @@ function _enviarEmailConexaoStrava(athId) {
 }
 
 // ── Página individual do atleta ─────────────────────────────
+/**
+ * Página pública do Ranking Divertido. Lê a mesma base de cálculo da
+ * aba interna (_construirBaseRankings_, Dashboard.js) — nunca duplica
+ * a lógica — e só exibe quem tem 👤 CADASTRO.AZ diferente de "Não".
+ */
+function _paginaRankingPublico() {
+  try {
+    const ss  = SpreadsheetApp.openById(_getSsId());
+    const base = _construirBaseRankings_(ss);
+    const ats = base.ats.filter(function(a) { return a.participar; });
+    const medal = ['🥇', '🥈', '🥉'];
+    const pos = function(i) { return medal[i] || (i + 1) + 'º'; };
+    const cats = [];
+
+    function addCat(id, titulo, emoji, itens, colDefs, topN) {
+      topN = topN || 10;
+      cats.push({
+        id: id,
+        titulo: titulo,
+        emoji: emoji,
+        cabecalho: colDefs.map(function(c) { return c.titulo; }),
+        linhas: itens.slice(0, topN).map(function(it, i) {
+          return colDefs.map(function(c) { return String(c.valor(it, i)); });
+        })
+      });
+    }
+
+    const colAtleta = { titulo: 'Atleta', valor: function(it) { return it.nome || it.athId; } };
+    const colPos    = { titulo: '#', valor: function(it, i) { return pos(i); } };
+
+    addCat('corrida', 'Volume de Corrida (30d)', '🏃',
+      ats.filter(function(a){ return a.kmCorrida30 > 0; }).sort(function(a,b){ return b.kmCorrida30 - a.kmCorrida30; }),
+      [ colPos, colAtleta, { titulo:'km', valor:function(it){ return it.kmCorrida30; } } ], 20);
+
+    addCat('caminhada', 'Volume de Caminhada (30d)', '🚶',
+      ats.filter(function(a){ return a.kmCaminhada30 > 0; }).sort(function(a,b){ return b.kmCaminhada30 - a.kmCaminhada30; }),
+      [ colPos, colAtleta, { titulo:'km', valor:function(it){ return it.kmCaminhada30; } } ]);
+
+    addCat('ciclismo', 'Volume de Ciclismo (30d)', '🚴',
+      ats.filter(function(a){ return a.kmCiclismo30 > 0; }).sort(function(a,b){ return b.kmCiclismo30 - a.kmCiclismo30; }),
+      [ colPos, colAtleta, { titulo:'km', valor:function(it){ return it.kmCiclismo30; } } ]);
+
+    addCat('forca', 'Força & Funcional (30d)', '🏋️',
+      ats.filter(function(a){ return a.forcaFuncional30 > 0; }).sort(function(a,b){ return b.forcaFuncional30 - a.forcaFuncional30; }),
+      [ colPos, colAtleta, { titulo:'Sessões', valor:function(it){ return it.forcaFuncional30; } } ]);
+
+    addCat('atividades', 'Número de Atividades (30d)', '🔢',
+      ats.filter(function(a){ return a.treinos30 > 0; }).sort(function(a,b){ return b.treinos30 - a.treinos30; }),
+      [ colPos, colAtleta, { titulo:'Atividades', valor:function(it){ return it.treinos30; } } ]);
+
+    addCat('streak', 'Sequência Ativa', '🔥',
+      ats.filter(function(a){ return a.streak > 0; }).sort(function(a,b){ return b.streak - a.streak; }),
+      [ colPos, colAtleta, { titulo:'Dias seguidos', valor:function(it){ return it.streak; } } ]);
+
+    addCat('madrugador', 'Madrugador(a)', '🌅',
+      ats.filter(function(a){ return a.madrugada30 > 0; }).sort(function(a,b){ return b.madrugada30 - a.madrugada30; }),
+      [ colPos, colAtleta, { titulo:'Treinos', valor:function(it){ return it.madrugada30; } } ]);
+
+    addCat('coruja', 'Coruja', '🌙',
+      ats.filter(function(a){ return a.coruja30 > 0; }).sort(function(a,b){ return b.coruja30 - a.coruja30; }),
+      [ colPos, colAtleta, { titulo:'Treinos', valor:function(it){ return it.coruja30; } } ]);
+
+    addCat('finde', 'Guerreiro(a) de Fim de Semana', '📅',
+      ats.filter(function(a){ return a.fimDeSemana30 > 0; }).sort(function(a,b){ return b.fimDeSemana30 - a.fimDeSemana30; }),
+      [ colPos, colAtleta, { titulo:'Treinos', valor:function(it){ return it.fimDeSemana30; } } ]);
+
+    addCat('montanha', 'Rei/Rainha da Montanha', '🏔️',
+      ats.filter(function(a){ return a.kmTotal >= 5 && a.elevPorKm > 0; }).sort(function(a,b){ return b.elevPorKm - a.elevPorKm; }),
+      [ colPos, colAtleta, { titulo:'m/km', valor:function(it){ return it.elevPorKm; } } ]);
+
+    addCat('comeback', 'Comeback do Mês', '🎽',
+      ats.filter(function(a){ return a.crescimento30 !== null && a.crescimento30 >= 20 && a.km30 > 0; }).sort(function(a,b){ return b.crescimento30 - a.crescimento30; }),
+      [ colPos, colAtleta, { titulo:'Crescimento', valor:function(it){ return it.crescimento30 + '%'; } } ]);
+
+    addCat('leve', 'Regenerativo Consciente', '🐢',
+      ats.filter(function(a){ return a.pseLeve30 > 0; }).sort(function(a,b){ return b.pseLeve30 - a.pseLeve30; }),
+      [ colPos, colAtleta, { titulo:'Treinos leves', valor:function(it){ return it.pseLeve30; } } ]);
+
+    const tmpl = HtmlService.createTemplateFromFile('ranking');
+    tmpl.dataJson = JSON.stringify(cats);
+    tmpl.totalParticipantes = ats.length;
+    return tmpl.evaluate()
+      .setTitle('Ranking Divertido — Hiperativo')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  } catch (err) {
+    return _paginaMensagemWA('Ranking indisponível', 'Não foi possível carregar o ranking agora: ' + err.message, '#c00');
+  }
+}
+
 function _paginaAtleta(athId) {
   try {
     const ss     = SpreadsheetApp.openById(_getSsId());

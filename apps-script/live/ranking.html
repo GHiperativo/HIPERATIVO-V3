@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ranking Divertido — Hiperativo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#050d1a 0%,#0b1f3a 60%,#071428 100%);min-height:100vh;color:#fff;padding:16px}
+.header{text-align:center;padding:20px 0 10px}
+.logo{font-size:2.4rem;font-weight:900;letter-spacing:2px;color:#fff}
+.logo span{color:#00c853}
+.sub{font-size:.72rem;color:#4fc3f7;letter-spacing:3px;margin-top:2px}
+.titulo{font-size:1.3rem;font-weight:700;margin-top:10px}
+.legenda{font-size:.78rem;color:#90caf9;margin-top:4px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0;justify-content:center}
+.tab{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:7px 14px;font-size:.78rem;cursor:pointer;color:#cfd8dc;user-select:none}
+.tab.ativa{background:#00c853;color:#04210f;font-weight:700;border-color:#00c853}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:16px;max-width:520px;margin:0 auto}
+.card h2{font-size:1.05rem;margin-bottom:12px;color:#4fc3f7}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th{text-align:left;color:#90caf9;font-weight:600;padding:6px 6px;border-bottom:1px solid rgba(255,255,255,.1)}
+td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.05)}
+tr:first-child td{font-weight:700;background:rgba(255,249,196,.08)}
+.vazio{text-align:center;color:#90caf9;padding:20px;font-size:.85rem}
+.footer{text-align:center;font-size:.68rem;color:rgba(255,255,255,.4);margin-top:20px;padding-bottom:10px}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">HIPER<span>ATIVO</span></div>
+    <div class="sub">CABEÇA · CORAÇÃO · CORPO</div>
+    <div class="titulo">🏆 Ranking Divertido</div>
+    <div class="legenda"><?= totalParticipantes ?> atleta(s) participando por escolha própria</div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="card" id="conteudo"></div>
+
+  <div class="footer">
+    Atualizado automaticamente a cada resultado no Strava.<br>
+    Quem prefere não aparecer aqui foi respeitado — ninguém é obrigado a participar.
+  </div>
+
+<script>
+  const CATEGORIAS = <?!= dataJson ?>;
+  const tabsEl = document.getElementById('tabs');
+  const contEl = document.getElementById('conteudo');
+
+  function render(id) {
+    const cat = CATEGORIAS.find(c => c.id === id) || CATEGORIAS[0];
+    if (!cat) { contEl.innerHTML = '<div class="vazio">Ainda não há dados suficientes.</div>'; return; }
+    let html = '<h2>' + cat.emoji + ' ' + cat.titulo + '</h2>';
+    if (!cat.linhas.length) {
+      html += '<div class="vazio">Ainda não há dados suficientes nesta categoria.</div>';
+    } else {
+      html += '<table><thead><tr>' + cat.cabecalho.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>';
+      cat.linhas.forEach(row => {
+        html += '<tr>' + row.map(v => '<td>' + v + '</td>').join('') + '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    contEl.innerHTML = html;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('ativa', t.dataset.id === cat.id));
+  }
+
+  CATEGORIAS.forEach((c, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'tab' + (i === 0 ? ' ativa' : '');
+    chip.textContent = c.emoji + ' ' + c.titulo;
+    chip.dataset.id = c.id;
+    chip.onclick = () => render(c.id);
+    tabsEl.appendChild(chip);
+  });
+
+  if (CATEGORIAS.length) render(CATEGORIAS[0].id);
+  else contEl.innerHTML = '<div class="vazio">Ainda não há categorias com dados suficientes.</div>';
+</script>
+</body>
+</html>

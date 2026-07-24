@@ -85,6 +85,7 @@ const H = {
     LINK_CRM:      49,
     CONEXAO_STRAVA: 50, // AX — estado operacional derivado; nunca substitui a declaração da coluna X
     VERIF_STRAVA:   51, // AY — data/hora da última avaliação do estado operacional
+    PARTICIPAR_RANKING: 52, // AZ — Sim/Não; controla só a página pública de ranking, nunca a aba interna
   },
 
   // ── Colunas da aba ATIVIDADES (1-indexed) ─────────────────────────────────
@@ -257,6 +258,15 @@ function onOpen() {
       .addItem('📊 Atualizar Ranking Completo', 'atualizarRankingExpandido')
   );
 
+  // ─── RANKINGS ────────────────────────────────────────────────────────────
+  menu.addSubMenu(
+    ui.createMenu('🏆 Rankings')
+      .addItem('📊 Atualizar Ranking Completo agora', 'atualizarRankingExpandido')
+      .addItem('🔗 Exibir link do Ranking Divertido (público)', 'mostrarUrlRankingPublico')
+      .addSeparator()
+      .addItem('✅ Definir "Sim" p/ quem ainda não escolheu participar (uma vez)', 'aplicarPadraoParticiparRanking')
+  );
+
   // ─── COMUNICAÇÃO ─────────────────────────────────────────────────────────
   menu.addSubMenu(
     ui.createMenu('📧 Comunicação')
@@ -387,6 +397,16 @@ function mostrarUrlWebApp() {
     return;
   }
   SpreadsheetApp.getUi().alert('🔗 URL do WebApp de Cadastro:\n\n' + url + '\n\nCopie esta URL para compartilhar o formulário de cadastro.');
+}
+
+function mostrarUrlRankingPublico() {
+  const url = PropertiesService.getScriptProperties().getProperty('WEBAPP_URL');
+  if (!url) {
+    SpreadsheetApp.getUi().alert('Configure primeiro a WEBAPP_URL em ⚙️ Configurar URL WebApp (exec).');
+    return;
+  }
+  SpreadsheetApp.getUi().alert('🏆 Link do Ranking Divertido:\n\n' + url + '?ranking=true' +
+    '\n\nSó aparece quem estiver com "Sim" (ou vazio) em CADASTRO ▸ Participar do Ranking Divertido (coluna AZ).');
 }
 
 // ── ATLETAS HELPERS ───────────────────────────────────────────────────────────

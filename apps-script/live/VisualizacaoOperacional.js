@@ -116,6 +116,7 @@ function sincronizarVisoesAposInput_(origem, athId, opcoes) {
       if (opcoes.forcarGlobal || !ultima || agora - ultima >= 5 * 60 * 1000) {
         props.setProperty('VIS_ULTIMA_ATUALIZACAO_GLOBAL', String(agora));
         try { atualizarRankingSheet(); } catch (eR) { _log('SISTEMA', 'AVISO', 'visual.ranking', eR.message, ''); }
+        try { atualizarRankingExpandido(); } catch (eRE) { _log('SISTEMA', 'AVISO', 'visual.rankingCompleto', eRE.message, ''); }
         try { atualizarAnaliseSheet(); } catch (eA) { _log('SISTEMA', 'AVISO', 'visual.analise', eA.message, ''); }
       }
     }

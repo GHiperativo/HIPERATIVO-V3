@@ -14,7 +14,7 @@ function organizarAbasOperacionais() {
     '📅 PLANO SEMANAL',
     '💬 FEEDBACK',
     '🔬 ANÁLISE',
-    '🏆 RANKING',
+    '🏆 RANKING COMPLETO',
     '📝 INPUT MANUAL'
   ];
   const ocultas = [
@@ -26,7 +26,7 @@ function organizarAbasOperacionais() {
     '📉 GRÁFICOS',
     '🔐 TOKENS',
     '⚙️ CONFIG',
-    '🏆 RANKING COMPLETO',
+    '🏆 RANKING',
     'STRAVA_WEBHOOK_QUEUE',
     '📡 STRAVA STATUS',
     '📨 STRAVA ENVIOS',

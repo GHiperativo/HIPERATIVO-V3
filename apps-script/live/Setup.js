@@ -383,6 +383,7 @@ function _aplicarDropdownsCadastro(ws) {
   _dropdown(ws, 26, 4, 500, ['Ativo','Inativo','Suspenso','Trial','Cancelado']); // Z=STATUS
   _dropdown(ws, 30, 4, 500, ['Cônjuge / Companheiro(a)','Pai / Mãe','Filho(a)','Irmão / Irmã','Amigo(a)','Outro']); // AD=EMERG_REL
   _dropdown(ws, 38, 4, 500, ['Mensal','Trimestral','Semestral','Anual','Cortesia']); // AL=PLANO_PAG
+  _dropdown(ws, 52, 4, 500, ['Sim','Não']); // AZ=PARTICIPAR_RANKING (página pública de ranking)
 
   // Campos com múltiplos valores possíveis — lista para referência, aceita texto livre
   const multiHint = (ws, col, opcoes) => {
@@ -418,6 +419,9 @@ function _aplicarFormatacaoCadastroCond(ws) {
   _condTexto(ws, 'AX4:AX500', 'Aguardando conexão',  COR.amarelo_cl);
   _condTexto(ws, 'AX4:AX500', 'Não utiliza',         '#E8E8E8');
   _condTexto(ws, 'AX4:AX500', 'Reconectar',          COR.vermelho_cl);
+  // Participar do Ranking Divertido — só afeta a página pública, nunca a aba interna (col 52 = AZ)
+  _condTexto(ws, 'AZ4:AZ500', 'Sim', COR.verde_claro);
+  _condTexto(ws, 'AZ4:AZ500', 'Não', '#E8E8E8');
   // PAR-Q alerta (col 31 = AE): se contiver S → destaque
   const regraParq = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('S')
@@ -537,6 +541,40 @@ function aplicarCorConexaoStrava() {
       '✅ Cor da Conexão Strava aplicada',
       'Coluna AX (Conexão Strava) agora tem cor por status.\n' +
       'Cabeçalho (3 linhas) e colunas ID+Nome permanecem congelados ao rolar.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } catch(_) {}
+}
+
+/**
+ * Define "Sim" em AZ (Participar do Ranking Divertido) só onde a célula
+ * está vazia — nunca sobrescreve "Não" já marcado por alguém. Roda uma vez
+ * para os cadastros existentes; novos cadastros já nascem com a coluna
+ * vazia e podem ser preenchidos manualmente ou tratados como "Sim" pela
+ * própria leitura do ranking (default aplicado na leitura, não só aqui).
+ * Menu: 🏆 Rankings ▸ Definir "Sim" para quem ainda não escolheu (uma vez)
+ */
+function aplicarPadraoParticiparRanking() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ws = ss.getSheetByName(H.SHEETS.CADASTRO);
+  if (!ws) { SpreadsheetApp.getUi().alert('Aba CADASTRO não encontrada.'); return; }
+  const ultima = ws.getLastRow();
+  if (ultima < 4) return;
+  const col = H.CAD.PARTICIPAR_RANKING;
+  const rg = ws.getRange(4, col, ultima - 3, 1);
+  const vals = rg.getValues();
+  let preenchidos = 0;
+  const novos = vals.map(function(r) {
+    const v = String(r[0] || '').trim();
+    if (!v) { preenchidos++; return ['Sim']; }
+    return [v];
+  });
+  if (preenchidos > 0) rg.setValues(novos);
+  try {
+    SpreadsheetApp.getUi().alert(
+      '✅ Padrão aplicado',
+      preenchidos + ' atleta(s) marcados como "Sim" (participar do ranking divertido).\n' +
+      'Quem já tinha "Sim" ou "Não" explícito não foi alterado.',
       SpreadsheetApp.getUi().ButtonSet.OK
     );
   } catch(_) {}
