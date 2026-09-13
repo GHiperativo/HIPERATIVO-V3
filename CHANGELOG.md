@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [0.2.1] — 2026-09-13
+### Added
+- Rotina segura `configurarSpreadsheetId()` para registrar o ID da planilha ativa em `PropertiesService` sem hardcode.
+- Diagnóstico `diagnosticarPropriedadesEssenciais()` para informar apenas se `ADMIN_EMAIL` e `SPREADSHEET_ID` estão configurados, sem exibir seus valores.
+- Implementação espelhada em `apps-script/live/SetupProperties.js` e `apps-script/src/SetupProperties.gs`.
+
+### Notes
+- Alteração preparada no repositório. O projeto Apps Script vivo ainda exige sincronização autenticada via `clasp push` ou atualização pelo editor do Apps Script.
+
 ## [0.2.0] — 2026-06-08
 ### Added
 - Campos de fallback manual na aba `📈 MÉTRICAS`: perfil, volume, intensidade, origem, confiança e observações.
