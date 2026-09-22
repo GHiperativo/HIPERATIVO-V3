@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <title>Cadastro — Grupo Hiperativo</title>
+  <style>
+    :root {
+      --verde:   #00c853;
+      --verde2:  #00e676;
+      --preto:   #0a0a0a;
+      --card:    #141414;
+      --card2:   #1c1c1c;
+      --borda:   #2a2a2a;
+      --borda2:  #333;
+      --texto:   #e8e8e8;
+      --texto2:  #999;
+      --erro:    #ff4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, Arial, sans-serif;
+      background: var(--preto);
+      color: var(--texto);
+      min-height: 100vh;
+    }
+
+    /* ─── HEADER ─────────────────────────────────────────── */
+    .header {
+      background: #000;
+      border-bottom: 2px solid var(--verde);
+      padding: 32px 20px 28px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(0,200,83,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .logo-wrap { display: inline-block; position: relative; margin-bottom: 16px; }
+    .logo-svg { display: block; margin: 0 auto; }
+    .tagline {
+      color: var(--verde);
+      font-size: .7rem;
+      letter-spacing: 5px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    .header-sub {
+      color: var(--texto2);
+      font-size: .88rem;
+      margin-top: 12px;
+    }
+
+    /* ─── CONTAINER ─────────────────────────────────────── */
+    .container { max-width: 740px; margin: 0 auto; padding: 28px 16px 60px; }
+
+    /* ─── CARD ──────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--borda);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: var(--card2);
+      border-bottom: 1px solid var(--borda2);
+      padding: 14px 20px;
+      font-size: .92rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--verde);
+      text-transform: uppercase;
+    }
+    .card-body { padding: 24px 20px 8px; }
+
+    /* ─── FORM ELEMENTS ─────────────────────────────────── */
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 200px; margin-bottom: 18px; }
+    .form-group.full { flex: 100%; min-width: 100%; }
+    .form-group.w33 { flex: 0 0 calc(33.333% - 10px); min-width: 140px; }
+
+    label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--texto2);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    label .req { color: var(--verde); }
+
+    input[type=text], input[type=email], input[type=date],
+    input[type=number], input[type=tel], select, textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 8px;
+      font-size: .95rem;
+      background: #1a1a1a;
+      color: var(--texto);
+      transition: border-color .2s, box-shadow .2s;
+      appearance: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--verde);
+      box-shadow: 0 0 0 3px rgba(0,200,83,.12);
+    }
+    input::placeholder { color: #555; }
+    textarea { resize: vertical; min-height: 72px; }
+    select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    select option { background: #1a1a1a; }
+
+    .input-hint {
+      font-size: .74rem;
+      color: #555;
+      margin-top: 4px;
+    }
+    .wa-link-preview {
+      font-size: .78rem;
+      color: var(--verde);
+      margin-top: 4px;
+      display: none;
+      word-break: break-all;
+    }
+
+    /* ─── PROGRAMAS ─────────────────────────────────────── */
+    .programas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .programa-card input[type=radio] { display: none; }
+    .programa-card label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 16px 10px;
+      border: 1.5px solid var(--borda2);
+      border-radius: 10px;
+      cursor: pointer;
+      background: #1a1a1a;
+      transition: all .2s;
+      color: var(--texto2);
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: .9rem;
+    }
+    .programa-card input[type=radio]:checked + label {
+      border-color: var(--verde);
+      background: rgba(0,200,83,.07);
+      color: var(--verde2);
+      box-shadow: 0 0 0 2px rgba(0,200,83,.15);
+    }
+    .programa-card label .emoji { font-size: 1.8rem; margin-bottom: 6px; }
+    .programa-card label .nome { font-weight: 700; font-size: .84rem; color: var(--texto); }
+    .programa-card input[type=radio]:checked + label .nome { color: var(--verde); }
+    .programa-card label .desc { font-size: .72rem; color: #666; margin-top: 4px; line-height: 1.3; }
+
+    /* ─── BOTÃO STRAVA ──────────────────────────────────── */
+    .strava-section {
+      background: #1a1a1a;
+      border: 1.5px dashed #333;
+      border-radius: 12px;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    .strava-icon { font-size: 2.2rem; margin-bottom: 10px; }
+    .strava-section p { color: var(--texto2); font-size: .88rem; margin-bottom: 18px; line-height: 1.6; }
+    .btn-strava {
+      background: #fc4c02;
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background .2s, transform .1s;
+      text-decoration: none;
+      letter-spacing: .5px;
+    }
+    .btn-strava:hover { background: #e04000; transform: translateY(-1px); }
+    .strava-note { font-size: .75rem; color: #555; margin-top: 10px; }
+    .strava-optional { font-size: .78rem; color: var(--verde); font-weight: 600; margin-top: 6px; }
+
+    /* ─── TERMOS ────────────────────────────────────────── */
+    .termos-box {
+      background: #111;
+      border: 1px solid var(--borda2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: .8rem;
+      color: #777;
+      line-height: 1.6;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+    .termos-box strong { color: var(--texto2); }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      cursor: pointer;
+    }
+    .check-row input[type=checkbox] {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      accent-color: var(--verde);
+      cursor: pointer;
+      margin-top: 1px;
+    }
+    .check-row span {
+      font-size: .83rem;
+      color: var(--texto2);
+      line-height: 1.5;
+    }
+    .check-row span .hl { color: var(--verde); font-weight: 600; }
+
+    /* ─── BOTÃO ENVIAR ──────────────────────────────────── */
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: var(--verde);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: 900;
+      cursor: pointer;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: background .2s, transform .1s, opacity .2s;
+    }
+    .btn-submit:hover:not(:disabled) {
+      background: var(--verde2);
+      transform: translateY(-1px);
+    }
+    .btn-submit:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ─── PROGRESS ──────────────────────────────────────── */
+    .progress-bar {
+      display: none;
+      height: 3px;
+      background: var(--borda2);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--verde);
+      animation: prog 1.5s ease-in-out infinite;
+    }
+    @keyframes prog {
+      0%   { width: 0%; margin-left: 0; }
+      50%  { width: 60%; margin-left: 20%; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* ─── MENSAGEM ──────────────────────────────────────── */
+    #msg {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      margin-top: 16px;
+      text-align: center;
+      font-size: .92rem;
+      line-height: 1.5;
+    }
+    #msg.ok  { background: rgba(0,200,83,.1); color: var(--verde); border: 1px solid rgba(0,200,83,.3); }
+    #msg.err { background: rgba(255,68,68,.1); color: var(--erro);  border: 1px solid rgba(255,68,68,.3); }
+
+    /* ─── DIVISOR ───────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--borda);
+      margin: 0 0 20px;
+    }
+
+    /* ─── RESPONSIVO ────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .header h1 { font-size: 1.6rem; }
+      .form-row { flex-direction: column; }
+      .form-group, .form-group.w33 { min-width: 100%; flex: 100%; }
+      .programas-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-wrap">
+    <!-- Logo oficial Hiperativo: anel cortado + raio + texto HIPER/ATIVO -->
+    <svg class="logo-svg" viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg" style="width:220px;height:85px;">
+      <!-- Anel circular cortado diagonalmente (abertura top-right e bottom-left) -->
+      <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="7"
+              stroke-dasharray="175 76" stroke-dashoffset="-10" stroke-linecap="butt"/>
+      <!-- Raio (lightning bolt) centralizado, branco, ligeiramente maior que o anel -->
+      <polygon points="58,4 30,52 48,52 42,96 72,44 54,44" fill="#fff"/>
+      <!-- Texto HIPER -->
+      <text x="105" y="48" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2"
+            dominant-baseline="auto">HIPER</text>
+      <!-- Texto ATIVO -->
+      <text x="105" y="95" font-family="Impact, Arial Black, sans-serif"
+            font-size="46" font-weight="900" fill="#fff" letter-spacing="2"
+            dominant-baseline="auto">ATIVO</text>
+    </svg>
+  </div>
+  <div class="tagline">CABEÇA &bull; CORAÇÃO &bull; CORPO</div>
+  <div class="header-sub">Preencha o formulário para fazer parte do grupo</div>
+</div>
+
+<div class="container">
+<form id="formCad" onsubmit="enviarForm(event)" novalidate>
+
+  <!-- Campo oculto para ID do atleta (preenchido via URL ou gerado no backend) -->
+  <input type="hidden" name="athId" id="athId" value="<?= athId ?>">
+  <!-- wa.me link gerado pelo JS antes do envio -->
+  <input type="hidden" name="waLink" id="waLink" value="">
+
+  <!-- ══ 1. DADOS PESSOAIS ═══════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">👤 Dados Pessoais</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" name="nome" placeholder="Seu nome completo" required maxlength="100" autocomplete="name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>E-mail <span class="req">*</span></label>
+          <input type="email" name="email" placeholder="seu@email.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp <span class="req">*</span></label>
+          <input type="tel" name="whats" id="whatsInput" placeholder="(61) 99999-9999" required
+                 oninput="onWhatsInput(this)" autocomplete="tel">
+          <div class="wa-link-preview" id="waLinkPreview"></div>
+          <div class="input-hint">Será normalizado para +5561999999999</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data de Nascimento <span class="req">*</span></label>
+          <input type="date" name="nasc" required autocomplete="bday">
+        </div>
+        <div class="form-group">
+          <label>Sexo <span class="req">*</span></label>
+          <select name="sexo" required>
+            <option value="">Selecione...</option>
+            <option value="M">Masculino</option>
+            <option value="F">Feminino</option>
+            <option value="O">Prefiro não informar</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Peso (kg)</label>
+          <input type="number" name="peso" placeholder="Ex: 72" min="30" max="250" step="0.1">
+        </div>
+        <div class="form-group">
+          <label>Altura (cm)</label>
+          <input type="number" name="altura" placeholder="Ex: 175" min="100" max="250">
+        </div>
+        <div class="form-group">
+          <label>CPF</label>
+          <input type="text" name="cpf" placeholder="000.000.000-00" maxlength="14"
+                 oninput="mascararCpf(this)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cidade <span class="req">*</span></label>
+          <input type="text" name="cidade" placeholder="Sua cidade" required>
+        </div>
+        <div class="form-group">
+          <label>Estado <span class="req">*</span></label>
+          <select name="estado" required>
+            <option value="">UF...</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+            <option>BA</option><option>CE</option><option selected>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+            <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+            <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+            <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+            <option>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2. PROGRAMA HIPERATIVO ══════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">⚡ Programa Hiperativo</div>
+    <div class="card-body">
+      <div class="form-group full" style="margin-bottom:16px;">
+        <label style="text-transform:none;font-size:.85rem;color:var(--texto2);">
+          Qual programa você quer participar? <span class="req">*</span>
+        </label>
+      </div>
+      <div class="programas-grid">
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p1" value="Alta Voltagem" required>
+          <label for="p1">
+            <span class="emoji">⚡</span>
+            <span class="nome">Alta Voltagem</span>
+            <span class="desc">Alta intensidade para resultados máximos</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p2" value="Corrida CCC">
+          <label for="p2">
+            <span class="emoji">🏅</span>
+            <span class="nome">Corrida CCC</span>
+            <span class="desc">Cabeça, Coração e Corpo em cada passada</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p3" value="Iniciante em Movimento">
+          <label for="p3">
+            <span class="emoji">🌱</span>
+            <span class="nome">Iniciante em Movimento</span>
+            <span class="desc">Primeiros passos para uma vida ativa</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p4" value="5k10k em 6 Semanas">
+          <label for="p4">
+            <span class="emoji">🎯</span>
+            <span class="nome">5k/10k em 6 Semanas</span>
+            <span class="desc">Do zero à primeira prova em 6 semanas</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p5" value="Hiperativo Running Club">
+          <label for="p5">
+            <span class="emoji">🏃</span>
+            <span class="nome">Running Club</span>
+            <span class="desc">Treinos em grupo, motivação coletiva</span>
+          </label>
+        </div>
+        <div class="programa-card">
+          <input type="radio" name="plano" id="p6" value="Vida Ativa Melhor Idade">
+          <label for="p6">
+            <span class="emoji">🌟</span>
+            <span class="nome">Melhor Idade</span>
+            <span class="desc">Vida ativa e saudável em qualquer fase</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 3. PERFIL ESPORTIVO ══════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">🏋️ Perfil Esportivo</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Modalidade Principal <span class="req">*</span></label>
+          <select name="mod" required>
+            <option value="">Selecione...</option>
+            <option>Corrida de rua</option>
+            <option>Ciclismo</option>
+            <option>Natação</option>
+            <option>Triathlon</option>
+            <option>Caminhada</option>
+            <option>Musculação</option>
+            <option>Funcional</option>
+            <option>Trail Running</option>
+            <option>Outra</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nível <span class="req">*</span></label>
+          <select name="nivel" required>
+            <option value="">Selecione...</option>
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+            <option>Elite</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Objetivo Principal <span class="req">*</span></label>
+          <select name="obj" required>
+            <option value="">Selecione...</option>
+            <option>Emagrecer / Reduzir gordura</option>
+            <option>Ganhar massa muscular</option>
+            <option>Melhorar desempenho</option>
+            <option>Completar primeira prova</option>
+            <option>Saúde e bem-estar</option>
+            <option>Bater recorde pessoal (PR)</option>
+            <option>Reabilitação / Retorno ao esporte</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frequência Semanal <span class="req">*</span></label>
+          <select name="freq" required>
+            <option value="">Selecione...</option>
+            <option>1-2x por semana</option>
+            <option>3-4x por semana</option>
+            <option>5-6x por semana</option>
+            <option>Todos os dias</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Horário Preferido</label>
+          <select name="horario">
+            <option value="">Selecione...</option>
+            <option>Manhã (5h–9h)</option>
+            <option>Manhã (9h–12h)</option>
+            <option>Tarde (12h–17h)</option>
+            <option>Noite (17h–21h)</option>
+            <option>Noite (21h+)</option>
+            <option>Variável</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Já participou de provas?</label>
+          <select name="prova">
+            <option value="">Selecione...</option>
+            <option>Nunca participei</option>
+            <option>Sim, 5k</option>
+            <option>Sim, 10k</option>
+            <option>Sim, meia maratona</option>
+            <option>Sim, maratona</option>
+            <option>Sim, triathlon</option>
+            <option>Sim, outras distâncias</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 4. SAÚDE & HISTÓRICO ════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">❤️ Saúde &amp; Histórico</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Condições de Saúde</label>
+          <input type="text" name="saude" placeholder="Ex: Diabetes, hipertensão, asma... (ou 'Nenhuma')">
+          <div class="input-hint">Informações usadas exclusivamente para adequação dos treinos.</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Lesões ou Limitações Físicas</label>
+          <input type="text" name="lesao" placeholder="Ex: Joelho, lombar, tornozelo... (ou 'Nenhuma')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Medicamentos de Uso Contínuo</label>
+          <input type="text" name="med" placeholder="Ex: Anti-hipertensivo, antidepressivo... (ou 'Não uso')">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 5. COMO NOS CONHECEU ════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">📣 Como nos Conheceu?</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Canal / Indicação</label>
+          <select name="origem">
+            <option value="">Selecione...</option>
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>Indicação de amigo</option>
+            <option>Google</option>
+            <option>WhatsApp</option>
+            <option>Evento esportivo</option>
+            <option>Strava</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Observações</label>
+          <input type="text" name="obs" placeholder="Alguma informação adicional?">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 6. TERMOS E CONSENTIMENTOS ══════════════════════════ -->
+  <div class="card">
+    <div class="card-header">📋 Termos e Consentimentos</div>
+    <div class="card-body">
+
+      <!-- TERMO DE SAÚDE -->
+      <div class="termos-box">
+        <strong>TERMO DE CONSENTIMENTO DE SAÚDE</strong><br>
+        Declaro que as informações de saúde fornecidas neste cadastro são verdadeiras e completas. Autorizo o
+        Grupo Hiperativo a utilizar tais informações exclusivamente para fins de adequação e prescrição de
+        atividades físicas, de forma confidencial. Estou ciente de que a prática de atividade física intensa
+        requer avaliação médica prévia e que, em caso de dúvida, devo consultar um profissional de saúde antes
+        de iniciar qualquer programa de treinamento. Isento o Grupo Hiperativo de responsabilidade por eventuais
+        intercorrências decorrentes de informações omitidas ou incorretas.
+      </div>
+      <label class="check-row" for="chkSaude">
+        <input type="checkbox" id="chkSaude" required>
+        <span>Li e <span class="hl">concordo com o Termo de Consentimento de Saúde</span> acima. Confirmo que minhas informações de saúde são verdadeiras.</span>
+      </label>
+
+      <!-- LGPD -->
+      <div class="termos-box">
+        <strong>POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS (LGPD)</strong><br>
+        Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD), o Grupo Hiperativo
+        informa que coletará e tratará seus dados pessoais para as seguintes finalidades: (a) gestão do
+        cadastro de atletas; (b) comunicação sobre treinos, eventos e programas; (c) análise de desempenho
+        esportivo; (d) envio de informações relevantes via WhatsApp e e-mail. Seus dados não serão
+        compartilhados com terceiros sem seu consentimento expresso, exceto por obrigação legal. Você tem
+        direito de acessar, corrigir, excluir ou revogar o consentimento ao uso de seus dados a qualquer
+        momento, mediante solicitação ao e-mail contato@ghiperativo.com.br. Os dados serão mantidos pelo
+        período necessário à prestação dos serviços ou conforme exigência legal.
+      </div>
+      <label class="check-row" for="chkLgpd">
+        <input type="checkbox" id="chkLgpd" required>
+        <span>Li e <span class="hl">aceito a Política de Privacidade e os Termos de Uso</span> do Grupo Hiperativo, em conformidade com a LGPD (Lei 13.709/2018).</span>
+      </label>
+
+      <!-- STRAVA -->
+      <div class="termos-box">
+        <strong>AUTORIZAÇÃO DE INTEGRAÇÃO COM STRAVA (opcional)</strong><br>
+        Caso opte por conectar sua conta Strava, você autoriza o Grupo Hiperativo a acessar, de forma somente
+        leitura (read-only), suas atividades físicas registradas na plataforma Strava. Nenhuma atividade será
+        criada, editada ou excluída. Os dados importados (distância, pace, frequência cardíaca, etc.) serão
+        usados exclusivamente para acompanhamento de treinamento. A autorização pode ser revogada a qualquer
+        momento diretamente nas configurações do seu perfil Strava.
+      </div>
+      <label class="check-row" for="chkStrava">
+        <input type="checkbox" id="chkStrava">
+        <span>Autorizo a integração com minha conta Strava para importação automática de atividades. <span class="hl">(opcional)</span></span>
+      </label>
+
+    </div>
+  </div>
+
+  <!-- ══ 7. CONECTAR STRAVA ═══════════════════════════════════ -->
+  <div class="card">
+    <div class="card-header">🔗 Conectar ao Strava <span style="font-size:.75rem;color:#555;font-weight:400;text-transform:none;margin-left:6px;">(opcional)</span></div>
+    <div class="card-body" style="padding-bottom:24px;">
+      <div class="strava-section">
+        <div class="strava-icon">🚴</div>
+        <p>
+          Conecte sua conta Strava para que seus treinos sejam importados automaticamente
+          e seu treinador acompanhe seu progresso sem você precisar enviar nada.
+        </p>
+        <button type="button" class="btn-strava" id="btnStrava" onclick="conectarStrava()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/>
+          </svg>
+          Conectar com Strava
+        </button>
+        <div class="strava-optional" id="stravaStatus">✓ Finalize o cadastro abaixo antes de conectar</div>
+        <div class="strava-note">Solicitamos apenas leitura das suas atividades (read-only)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ENVIAR ════════════════════════════════════════════════ -->
+  <button type="submit" class="btn-submit" id="btnEnviar">
+    ⚡ FINALIZAR CADASTRO
+  </button>
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-bar-fill"></div>
+  </div>
+  <div id="msg"></div>
+
+</form>
+</div><!-- /container -->
+
+<script>
+  // ── Pegar athId da URL caso não veio pelo template ─────────
+  (function () {
+    const el = document.getElementById('athId');
+    if (!el.value || el.value === '') {
+      const p = new URLSearchParams(window.location.search);
+      const id = p.get('athId') || p.get('athid') || '';
+      if (id) el.value = id.trim().toUpperCase();
+    }
+  })();
+
+  // ── NORMALIZAR WHATSAPP ─────────────────────────────────────
+  // Resultado final: string de dígitos sem formatação, com 55 na frente
+  // Armazenado na planilha como: +5561999999999
+  // Link wa.me: https://wa.me/5561999999999
+  function normalizarWhats(raw) {
+    let d = (raw || '').replace(/\D/g, ''); // remove tudo que não é dígito
+    if (!d) return '';
+    // Remove zero inicial (ex: 061...)
+    if (d.startsWith('0')) d = d.slice(1);
+    // Adiciona código do Brasil se ausente
+    if (!d.startsWith('55')) d = '55' + d;
+    return d; // ex: "5561999999999"
+  }
+
+  function onWhatsInput(el) {
+    const digits = normalizarWhats(el.value);
+    const preview = document.getElementById('waLinkPreview');
+    const linkInput = document.getElementById('waLink');
+    if (digits.length >= 12) {
+      const waUrl = 'https://wa.me/' + digits;
+      preview.textContent = '🔗 ' + waUrl;
+      preview.style.display = 'block';
+      linkInput.value = waUrl;
+    } else {
+      preview.style.display = 'none';
+      linkInput.value = '';
+    }
+  }
+
+  // ── MÁSCARA CPF ─────────────────────────────────────────────
+  function mascararCpf(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    el.value = v;
+  }
+
+  // ── ENVIAR FORMULÁRIO ───────────────────────────────────────
+  function enviarForm(e) {
+    e.preventDefault();
+
+    // Validar checkboxes obrigatórios
+    if (!document.getElementById('chkSaude').checked) {
+      showMsg('⚠️ Você precisa aceitar o Termo de Consentimento de Saúde para continuar.', false);
+      document.getElementById('chkSaude').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!document.getElementById('chkLgpd').checked) {
+      showMsg('⚠️ Você precisa aceitar a Política de Privacidade (LGPD) para continuar.', false);
+      document.getElementById('chkLgpd').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    // Validar campos required
+    const form = e.target;
+    const invalidos = form.querySelectorAll(':invalid');
+    if (invalidos.length > 0) {
+      invalidos[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      invalidos[0].focus();
+      showMsg('⚠️ Preencha todos os campos obrigatórios (marcados com *).', false);
+      return;
+    }
+
+    const btn  = document.getElementById('btnEnviar');
+    const prog = document.getElementById('progressBar');
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+    prog.style.display = 'block';
+
+    // Coletar todos os campos
+    const fd   = new FormData(form);
+    const data = {};
+    fd.forEach((v, k) => { data[k] = v; });
+
+    // Normalizar WhatsApp antes de enviar
+    const whatsDigits = normalizarWhats(data.whats || '');
+    if (whatsDigits) {
+      data.whats  = '+' + whatsDigits;  // +5561999999999
+      data.waLink = 'https://wa.me/' + whatsDigits;
+      document.getElementById('waLink').value = data.waLink;
+    }
+
+    // Consentimentos
+    data.consenteSaude  = document.getElementById('chkSaude').checked  ? 'Sim' : 'Não';
+    data.consentsLgpd   = document.getElementById('chkLgpd').checked   ? 'Sim' : 'Não';
+    data.consenteStrava = document.getElementById('chkStrava').checked  ? 'Sim' : 'Não';
+
+    google.script.run
+      .withSuccessHandler(function (resp) {
+        prog.style.display = 'none';
+        if (resp && resp.ok) {
+          document.getElementById('athId').value = resp.athId || data.athId || '';
+
+          // Atualizar btnStrava para redirecionar direto sem popup (Fix: stravaUrl disponível)
+          if (resp.stravaUrl) {
+            var btn = document.getElementById('btnStrava');
+            if (btn) { btn.onclick = function() { window.location.href = resp.stravaUrl; }; }
+            // Armazenar URL globalmente como fallback
+            window._stravaUrlCached = resp.stravaUrl;
+          }
+          btn.textContent = '✅ Cadastro Enviado!';
+          btn.style.background = '#00c853';
+          btn.style.color = '#000';
+          // Liberar botão Strava
+          const statusEl = document.getElementById('stravaStatus');
+          if (statusEl) {
+            statusEl.textContent = '✅ Cadastro salvo! Agora conecte seu Strava acima.';
+            statusEl.style.color = '#00c853';
+          }
+          showMsg(
+            '✅ Cadastro recebido com sucesso!' +
+            (resp.nome ? ' Bem-vindo(a), <strong>' + resp.nome + '</strong>!' : '') +
+            ' Confira seu e-mail para confirmar e conectar o Strava.',
+            true
+          );
+        } else {
+          btn.disabled = false;
+          btn.textContent = '⚡ FINALIZAR CADASTRO';
+          showMsg('❌ ' + (resp && resp.erro ? resp.erro : 'Erro ao salvar. Tente novamente.'), false);
+        }
+      })
+      .withFailureHandler(function (err) {
+        prog.style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '⚡ FINALIZAR CADASTRO';
+        showMsg('❌ Erro: ' + (err.message || 'Tente novamente em instantes.'), false);
+      })
+      .salvarCadastroAjax(data);
+  }
+
+  // ── CONECTAR STRAVA ─────────────────────────────────────────
+  function conectarStrava(urlDireto) {
+    // Atalho: se URL já veio do servidor, redirecionar direto (sem 2ª chamada)
+    if (urlDireto || window._stravaUrlCached) { window.location.href = urlDireto || window._stravaUrlCached; return; }
+    const athEl = document.getElementById('athId');
+    const athId = athEl ? athEl.value.trim() : '';
+    if (!athId) {
+      showMsg('⚠️ Conclua e envie o formulário antes de conectar o Strava.', false);
+      document.getElementById('btnEnviar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    showMsg('🔗 Abrindo autorização Strava...', true);
+    google.script.run
+      .withSuccessHandler(function (url) {
+        if (url) {
+          window.location.href = url; // redireciona direto (sem popup - Strava retorna via callback)
+          showMsg('✅ Aba Strava aberta! Autorize o acesso e retorne aqui.', true);
+        } else {
+          showMsg('❌ Erro ao gerar link Strava. Tente novamente.', false);
+        }
+      })
+      .withFailureHandler(function (err) {
+        showMsg('❌ Erro: ' + err.message, false);
+      })
+      .gerarUrlOAuth(athId);
+  }
+
+  // ── EXIBIR MENSAGEM ─────────────────────────────────────────
+  function showMsg(html, ok) {
+    const el = document.getElementById('msg');
+    el.innerHTML  = html;
+    el.className  = ok ? 'ok' : 'err';
+    el.style.display = 'block';
+    setTimeout(function () {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+</script>
+</body>
+</html>

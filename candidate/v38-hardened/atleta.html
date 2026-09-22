@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel do Atleta — Hiperativo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#050d1a 0%,#0b1f3a 60%,#071428 100%);min-height:100vh;color:#fff;padding:16px}
+.header{text-align:center;padding:20px 0 16px}
+.logo{font-size:2.8rem;font-weight:900;letter-spacing:2px;color:#fff}
+.logo span{color:#00c853}
+.sub{font-size:.72rem;color:#4fc3f7;letter-spacing:4px;margin-top:2px}
+.nome-atleta{font-size:1.5rem;font-weight:700;color:#fff;margin-top:10px}
+.id-badge{display:inline-block;background:rgba(0,200,83,.15);border:1px solid #00c853;border-radius:20px;padding:3px 14px;font-size:.78rem;color:#00c853;margin-top:4px;letter-spacing:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:14px 0}
+.kpi{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 12px;text-align:center}
+.kpi-val{font-size:1.6rem;font-weight:700;color:#4fc3f7}
+.kpi-lbl{font-size:.72rem;color:#90caf9;margin-top:2px;text-transform:uppercase;letter-spacing:.8px}
+.kpi.verde .kpi-val{color:#00c853}
+.kpi.vermelho .kpi-val{color:#ef5350}
+.kpi.laranja .kpi-val{color:#FF9800}
+.section{margin-top:14px}
+.sec-title{font-size:.8rem;font-weight:700;color:#4fc3f7;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(79,195,247,.2)}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.zonas{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.zona{border-radius:8px;padding:10px 6px;text-align:center}
+.zona .zn{font-size:.7rem;font-weight:700;letter-spacing:1px;margin-bottom:2px}
+.zona .zv{font-size:.82rem;font-weight:600;font-variant-numeric:tabular-nums}
+.zona .zl{font-size:.65rem;color:rgba(255,255,255,.6);margin-top:1px}
+.z1{background:rgba(76,175,80,.25);border:1px solid rgba(76,175,80,.4)}
+.z2{background:rgba(33,150,243,.25);border:1px solid rgba(33,150,243,.4)}
+.z3{background:rgba(255,193,7,.25);border:1px solid rgba(255,193,7,.4)}
+.z4{background:rgba(255,152,0,.25);border:1px solid rgba(255,152,0,.4)}
+.z5{background:rgba(244,67,54,.25);border:1px solid rgba(244,67,54,.4)}
+table.ativ{width:100%;border-collapse:collapse;font-size:.8rem}
+table.ativ th{background:rgba(255,255,255,.07);padding:6px 8px;text-align:left;color:#90caf9;font-weight:600;white-space:nowrap}
+table.ativ td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+table.ativ tr:hover td{background:rgba(255,255,255,.04)}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.68rem;font-weight:600}
+.tag-corrida{background:#1B5E20;color:#A5D6A7}
+.tag-bike{background:#0D47A1;color:#90CAF9}
+.tag-swim{background:#006064;color:#80DEEA}
+.tag-cam{background:#37474F;color:#CFD8DC}
+.tag-outro{background:#1A237E;color:#C5CAE9}
+.diag-item{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:8px;border-left:3px solid #4fc3f7}
+.diag-tipo{font-weight:700;font-size:.78rem;color:#4fc3f7;white-space:nowrap;padding-top:1px}
+.diag-msg{font-size:.78rem;color:#ccc;line-height:1.5}
+.bar-wrap{margin-top:6px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:.78rem}
+.bar-lbl{width:60px;text-align:right;color:#90caf9}
+.bar-bg{flex:1;background:rgba(255,255,255,.08);border-radius:4px;height:10px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px}
+.footer{text-align:center;padding:20px 0 8px;color:rgba(255,255,255,.4);font-size:.72rem}
+@media(max-width:480px){.zonas{grid-template-columns:repeat(3,1fr)}.zona .zv{font-size:.72rem}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">HIPER<span>ATIVO</span></div>
+  <div class="sub">CABEÇA • CORAÇÃO • CORPO</div>
+  <div class="nome-atleta"><?= nome ?></div>
+  <div class="id-badge"><?= athId ?></div>
+</div>
+
+<div class="grid">
+  <div class="kpi verde">
+    <div class="kpi-val"><?= vo2 || '—' ?></div>
+    <div class="kpi-lbl">VO2máx est.</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-val"><?= paceMed || '—' ?></div>
+    <div class="kpi-lbl">Pace Médio</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-val"><?= volSem || '—' ?></div>
+    <div class="kpi-lbl">km/sem</div>
+  </div>
+  <div class="kpi <?= tsbCor ?>">
+    <div class="kpi-val"><?= tsbStr || '—' ?></div>
+    <div class="kpi-lbl">TSB (estado)</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-val"><?= acwrStr || '—' ?></div>
+    <div class="kpi-lbl">ACWR</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-val"><?= treinos28 ?></div>
+    <div class="kpi-lbl">Treinos (28d)</div>
+  </div>
+</div>
+
+<!-- Zonas de treino -->
+<div class="section">
+  <div class="sec-title">🏃 Zonas de Treino (Pace)</div>
+  <div class="card">
+    <div class="zonas">
+      <div class="zona z1"><div class="zn">Z1</div><div class="zv"><?= z1 ?></div><div class="zl">Recuperação</div></div>
+      <div class="zona z2"><div class="zn">Z2</div><div class="zv"><?= z2 ?></div><div class="zl">Aeróbico</div></div>
+      <div class="zona z3"><div class="zn">Z3</div><div class="zv"><?= z3 ?></div><div class="zl">Limiar</div></div>
+      <div class="zona z4"><div class="zn">Z4</div><div class="zv"><?= z4 ?></div><div class="zl">VO2</div></div>
+      <div class="zona z5"><div class="zn">Z5</div><div class="zv"><?= z5 ?></div><div class="zl">Máximo</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Distribuição de zonas (90d) -->
+<div class="section">
+  <div class="sec-title">📊 Distribuição de Zonas — 90 dias <?= modeloZonas ? '| ' + modeloZonas : '' ?></div>
+  <div class="card">
+    <div class="bar-wrap">
+      <div class="bar-row"><span class="bar-lbl">Z1-Z2</span><div class="bar-bg"><div class="bar-fill" style="width:<?= pctZ1z2 ?>%;background:#4CAF50"></div></div><span><?= pctZ1z2 ?>%</span></div>
+      <div class="bar-row"><span class="bar-lbl">Z3</span><div class="bar-bg"><div class="bar-fill" style="width:<?= pctZ3 ?>%;background:#FFC107"></div></div><span><?= pctZ3 ?>%</span></div>
+      <div class="bar-row"><span class="bar-lbl">Z4-Z5</span><div class="bar-bg"><div class="bar-fill" style="width:<?= pctZ4z5 ?>%;background:#F44336"></div></div><span><?= pctZ4z5 ?>%</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Diagnóstico e prescrição -->
+<? if (prescricao && prescricao.length > 0) { ?>
+<div class="section">
+  <div class="sec-title">🔬 Diagnóstico e Prescrição</div>
+  <? prescricao.forEach(function(p) { ?>
+  <div class="diag-item">
+    <div class="diag-tipo"><?= p.tipo ?></div>
+    <div class="diag-msg"><?= p.msg ?></div>
+  </div>
+  <? }); ?>
+</div>
+<? } ?>
+
+<!-- Atividades recentes -->
+<div class="section">
+  <div class="sec-title">📋 Atividades Recentes</div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table class="ativ">
+      <thead><tr>
+        <th>Data</th><th>Tipo</th><th>Nome</th><th>Dist.</th><th>Tempo</th><th>Pace/Vel</th><th>FC Méd</th><th>Elev</th><th>PSE</th>
+      </tr></thead>
+      <tbody>
+        <? atividades.forEach(function(a) { ?>
+        <tr>
+          <td><?= a.data ?></td>
+          <td><span class="tag <?= a.tagCls ?>"><?= a.tipo ?></span></td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= a.nome ?></td>
+          <td><?= a.dist ?></td>
+          <td><?= a.tempo ?></td>
+          <td><?= a.pace ?></td>
+          <td><?= a.fc ?></td>
+          <td><?= a.elev ?></td>
+          <td><?= a.pse ?></td>
+        </tr>
+        <? }); ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  Grupo Hiperativo · <?= ts ?><br>
+  Este link é pessoal e pode ser compartilhado com seu atleta.
+</div>
+</body>
+</html>
