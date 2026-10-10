@@ -17,7 +17,7 @@ test('Supabase com configuração incompleta falha', async () => {
   assert.equal(result.reason, 'incomplete_credentials');
 });
 
-test('auditoria Strava não expõe referências internas', async () => {
+test('auditoria Strava preserva status do check sem expor referências internas', async () => {
   const fetchImpl = async () => ({
     ok: true,
     status: 200,
@@ -41,6 +41,7 @@ test('auditoria Strava não expõe referências internas', async () => {
 
   assert.deepEqual(result, {
     status: 'ok',
+    credential_status: 'Renovado',
     vault_only: true,
     token_version: 3,
     vault_reference: 'complete',
