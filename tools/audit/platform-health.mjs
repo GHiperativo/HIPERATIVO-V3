@@ -85,10 +85,12 @@ export async function checkStravaCredentialHealth({ supabaseUrl, serviceRoleKey,
     });
     const summary = validateSafeOutput(summarizeCredentialMetadata(row));
     const healthy = summary.vault_only && summary.vault_reference === 'complete';
+    const { status: credentialStatus, ...safeMetadata } = summary;
 
     return {
       status: healthy ? 'ok' : 'error',
-      ...summary,
+      credential_status: credentialStatus,
+      ...safeMetadata,
     };
   } catch (error) {
     return { status: 'error', reason: error.message };
