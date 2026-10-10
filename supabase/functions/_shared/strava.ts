@@ -98,7 +98,7 @@ export async function listTokens(): Promise<TokenRow[]> {
 }
 
 async function getTokenCredentials(athId: string): Promise<TokenRow> {
-  const response = await rest(`tokens_strava?ath_id=eq.${encodeURIComponent(athId)}&select=ath_id,nome,access_token,refresh_token,expires_at,scope,strava_id,ult_atu,status,token_version&limit=1`);
+  const response = await rest(`tokens_strava?ath_id=eq.${encodeURIComponent(athId)}&select=ath_id,nome,access_token,expires_at,scope,strava_id,ult_atu,status,token_version&limit=1`);
   if (!response.ok) throw new Error(`token credential lookup HTTP ${response.status}`);
   const rows = await response.json() as TokenRow[];
   if (!rows.length) throw new Error(`token row unavailable for ${athId}`);
@@ -116,7 +116,6 @@ async function patchToken(athId: string, values: Record<string, unknown>): Promi
 
 function copyTokenState(target: TokenRow, source: TokenRow): void {
   target.access_token = source.access_token ?? null;
-  target.refresh_token = source.refresh_token ?? null;
   target.expires_at = source.expires_at;
   target.status = source.status;
   target.ult_atu = source.ult_atu;
