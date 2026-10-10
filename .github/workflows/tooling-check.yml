@@ -8,6 +8,8 @@ on:
       - 'chore/**'
     paths:
       - 'tools/**'
+      - 'supabase/migrations/**'
+      - 'supabase/migration-baseline.json'
       - 'snapshots/platform-health/**'
       - 'package.json'
       - '.nvmrc'
@@ -17,6 +19,8 @@ on:
       - main
     paths:
       - 'tools/**'
+      - 'supabase/migrations/**'
+      - 'supabase/migration-baseline.json'
       - 'snapshots/platform-health/**'
       - 'package.json'
       - '.nvmrc'
@@ -45,6 +49,9 @@ jobs:
 
       - name: Run tooling tests
         run: npm run test:tooling
+
+      - name: Validate Supabase migration ledger
+        run: npm run audit:supabase-migrations
 
       - name: Detect Platform Health regressions
         run: npm run snapshot:regression -- --auto
