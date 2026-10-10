@@ -1,7 +1,7 @@
 {
-  "cutoff_version": "20261010234405",
+  "cutoff_version": "20261010234625",
   "captured_at": "2026-10-10",
-  "remote_count": 42,
+  "remote_count": 43,
   "legacy_local_only": [
     "20260722155300",
     "20260722204500"
@@ -48,6 +48,7 @@
     {"version":"20261010231313","name":"participant_portal_claim_uuid_fix","sql_md5":"518e3dedcfeb3f070733e89dbea4ebb1","sql_chars":3356},
     {"version":"20261010233748","name":"platform_health_ping","sql_md5":"6eaf5bdd80dc1eb3841b4aaf042b0d21","sql_chars":287},
     {"version":"20261010233825","name":"platform_health_ping_search_path","sql_md5":"34a382ee7b2d1483fef55025186fc054","sql_chars":308},
-    {"version":"20261010234405","name":"platform_migration_ledger_rpc","sql_md5":"bbc96ed2d65ff2df8af04da1ed57a73f","sql_chars":783}
+    {"version":"20261010234405","name":"platform_migration_ledger_rpc","sql_md5":"bbc96ed2d65ff2df8af04da1ed57a73f","sql_chars":783},
+    {"version":"20261010234625","name":"platform_migration_ledger_private_hardening","sql_md5":"7c64a981d7ae646d8d7627038f70c54a","sql_chars":1441}
   ]
 }
