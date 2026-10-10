@@ -1,4 +1,4 @@
--- Apply only after `strava_client_secret` exists in Supabase Vault and strava-sync is healthy.
+-- ACTIVE IN PRODUCTION since 2026-10-10 under explicit STRAVA P0 RED approval.
 -- One job replaces both proactive token renewal and recurring reconciliation from the retired Apps Script path.
 
 select cron.schedule(
