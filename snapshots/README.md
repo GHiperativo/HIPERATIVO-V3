@@ -1,10 +1,20 @@
-# Apps Script production snapshots
+# Technical snapshots
+
+This directory stores read-only evidence snapshots used by the PLATAFORMA HIPERATIVO.
+
+## Platform Health
+
+- `platform-health/`: sanitized, versioned technical health snapshots for comparison across executions.
+- These files must never contain tokens, service-role keys, athlete identifiers, or internal Vault UUIDs.
+- Capture with `npm run snapshot:platform-health` and compare with `npm run snapshot:compare -- <before> <after>`.
+
+## Apps Script production snapshots
 
 Read-only snapshots extracted from Apps Script project
 `1cm4IbBr3IsAjHtJJNOAAJQf3EnFD66ES5hMmiCaejBQCkNpVOnp5Zy_P` on
 2026-07-15.
 
-## Contents
+### Contents
 
 - `editor-head/`: current saved editor state (`@HEAD`), 20 files.
 - `deployments/v10-oauth-production/`: immutable version 10 used by the
@@ -14,7 +24,7 @@ Read-only snapshots extracted from Apps Script project
 - `DEPLOYMENTS.md`: deployment-to-version inventory captured before extraction.
 - `SHA256SUMS.txt`: integrity hashes of every extracted source file.
 
-## Safety
+### Safety
 
 These folders are evidence snapshots, not clasp working directories. Their
 `.clasp.json` files were intentionally excluded to reduce the risk of an
@@ -27,4 +37,3 @@ The source was scanned for credential-like literals before versioning. No
 embedded token, API key, private key, or literal client secret was detected.
 Some diagnostics log variables named `secret`; those are code-level security
 findings, not embedded credential values, and the snapshot remains unchanged.
-
