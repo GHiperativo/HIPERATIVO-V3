@@ -135,8 +135,135 @@ Never print or export `access_token`, `refresh_token`, Vault decrypted secrets, 
 
 ## Continuity checkpoint
 
-Branch: `fix/strava-p0-red-20261010`  
-PR: `#14 fix(strava): reparar ingestão P0 sem Apps Script`  
+Branch: `fix/strava-p0-red-20261010`
+PR: `#14 fix(strava): reparar ingestÃ£o P0 sem Apps Script`
 Production code was deployed from this branch under the explicit Strava P0 RED authorization. The PR remains draft and unmerged. Merging `main` is a separate gate.
 
 Next executable security step: design and validate a provider-safe athlete-token Vault write path for new OAuth/reconnects, then migrate existing credentials without ever surfacing their values to an assistant or repository.
+
+## OAuth + Vault cutover | 2026-10-10
+
+Status: production cutover completed for stored athlete credentials. Real new/reconnect authorization remains externally gated only by the Strava Authorization Callback Domain setting.
+
+### What this replaces
+
+The legacy OAuth/reconnect path in Google Apps Script and plaintext athlete OAuth columns are no longer the target runtime. `public.tokens_strava.access_token` and `public.tokens_strava.refresh_token` are retained only as compatibility columns and are constrained to remain `NULL`.
+
+### New OAuth architecture
+
+`trusted operator -> strava-oauth create_link -> one-use opaque state -> Strava authorize -> strava-oauth callback -> Vault -> token metadata`
+
+Controls:
+
+1. OAuth links can be issued only through an internally authenticated POST action.
+2. The OAuth `state` is 32 cryptographically random bytes encoded as 64 hex characters.
+3. Only SHA-256 of state is stored in `private.strava_oauth_tickets`.
+4. Ticket lifetime is 15 minutes by default, bounded to 5-30 minutes.
+5. A new ticket invalidates an older unconsumed ticket for the same athlete.
+6. State is consumed exactly once before authorization-code exchange.
+7. New flow requests only `read,activity:read_all`.
+8. Callback verifies that `activity:read_all` was actually granted.
+9. Existing `ath_id <-> strava_id` identity cannot be silently replaced.
+10. A Strava identity already linked to another `ath_id` is rejected.
+11. New and reconnect credentials are written directly to per-athlete Vault secrets.
+12. OAuth success updates only token metadata plus `atletas.strava_ok/strava_id`.
+13. Callback responses never contain OAuth credentials.
+
+### Production migrations
+
+The authoritative production sequence is:
+
+- `20261010202656_strava_oauth_ticket_scaffold`
+- `20261010202722_strava_legacy_tokens_to_vault`
+- `20261010202746_strava_vault_runtime_phase1`
+- `20261010202944_strava_oauth_vault_cutover`
+
+Git mirrors those same four versions. Do not collapse them into one migration: the split reflects the actual production safety gates and rollback window.
+
+### Legacy migration evidence
+
+Before plaintext scrub:
+
+- 28 active integrations had both Vault secret IDs.
+- all 29 token rows, including the inactive integration, had both Vault secret IDs.
+- server-side SHA-256 comparison produced 29/29 access-token matches and 29/29 refresh-token matches between legacy value and Vault value.
+- no token value was returned to ChatGPT, terminal output, Git, Notion or PR comments.
+
+After cutover:
+
+- total token rows: 29.
+- rows with both legacy OAuth columns NULL: 29.
+- `vault_only=true`: 29.
+- active integrations readable through the Vault-only access RPC: 28/28.
+- refresh-secret claim test succeeded without returning secret material and was rolled back.
+- active/stuck refresh leases after test: 0.
+- `tokens_strava_oauth_plaintext_null_ck` enforces `access_token IS NULL AND refresh_token IS NULL` at database level.
+
+### Edge versions after OAuth deploy
+
+- `strava-oauth`: v1, public callback with internal authentication required for POST administration.
+- `strava-sync`: v4.
+- `strava-webhook`: v6.
+
+Negative surface tests:
+
+- unauthenticated `POST strava-oauth` -> HTTP 401.
+- invalid OAuth state -> HTTP 400.
+
+### External gate: Strava Authorization Callback Domain
+
+A live authorization probe against the new Supabase callback currently returns HTTP 400 with Strava `redirect_uri invalid`. The Strava application settings must set the Authorization Callback Domain to:
+
+`korlpbclqgmqvpbrungc.supabase.co`
+
+The intended redirect URI is:
+
+`https://korlpbclqgmqvpbrungc.supabase.co/functions/v1/strava-oauth`
+
+This provider setting is not available through the public Strava API, so it cannot be changed by the Supabase runtime. Do not change client secret or webhook subscription merely to solve this callback-domain gate.
+
+### Security advisor checkpoint
+
+No new OAuth/Vault WARN was introduced. `private.strava_oauth_tickets` appears as RLS-enabled-without-policy INFO by design because it is not client-facing and no client role has privileges. Existing separate warnings remain: `pg_net` extension placement and Auth leaked-password protection disabled.
+
+### Continuity checkpoint
+
+Branch: `feat/strava-oauth-vault-20261010`
+PR: `#15 feat(strava): OAuth seguro e Vault por atleta`
+Base: `fix/strava-p0-red-20261010` / PR #14.
+Merge to `main` remains a separate approval gate.
+
+Next executable step after the callback-domain setting is updated: re-run the Strava authorization probe, issue one controlled reconnect link, complete one real OAuth round-trip, verify Vault-only persistence and then declare the new connection path operational.
+
+
+## Authenticated self-service connection | 2026-10-10
+
+Status: backend contract deployed and hardened. UI activation remains gated by the participant access rollout.
+
+### What this replaces
+
+Manual OAuth-link generation and any future browser flow that would submit an arbitrary `ath_id`.
+
+### New path
+
+`participant JWT -> strava-connect -> Supabase Auth validation -> service-role-only identity resolver -> one-use OAuth ticket -> Strava -> strava-oauth -> Vault`
+
+- `strava-connect`: v2, ACTIVE, `verify_jwt=true`.
+- The browser never supplies `ath_id`.
+- The Edge Function validates the bearer session against `/auth/v1/user` before asking for a ticket.
+- `strava_oauth_issue_user_ticket(uuid, integer)` resolves `access_memberships -> participants -> ath_id_v3` and requires active access plus `identity_status='verified'`.
+- That RPC is `SECURITY DEFINER`, `search_path=''`, and executable only by `service_role`; `anon` and `authenticated` cannot call it directly.
+- The first client-callable draft RPC was removed by the hardening migration after Security Advisor flagged the surface.
+- Security Advisor after hardening shows no new self-service warning; the pre-existing `pg_net` placement and leaked-password-protection warnings remain separate work.
+- CORS preflight returns HTTP 204 and anonymous POST returns HTTP 401.
+
+Production migrations:
+
+- `20261010212334_strava_oauth_self_service`
+- `20261010212631_strava_oauth_self_service_hardening`
+
+### Activation gate
+
+The currently active Hiper Reserva membership is administrative and intentionally has no `participant_id`. Verified participants mapped to V3 exist, but no real participant-auth membership was available for a positive browser-session test in this step. Do not bind the admin account to a participant just to manufacture the test.
+
+Next executable step: activate one legitimate participant membership through the official access flow, then exercise `strava-connect` with that participant session before mounting the control broadly in the participant portal.
