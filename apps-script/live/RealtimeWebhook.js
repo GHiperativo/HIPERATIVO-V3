@@ -715,9 +715,12 @@ function migrarTriggersParaTempoReal() {
   var processados = checagem.code === 200 ? JSON.parse(checagem.text || '[]') : [];
   if (!processados.length) throw new Error('Ainda não existe evento processado; gatilhos foram preservados.');
 
+  // O webhook substitui a varredura frequente de atividades, mas NAO substitui
+  // a renovacao preventiva de credenciais. Access tokens Strava expiram em poucas
+  // horas; manter renovacaoProativaTokens evita depender de um evento novo para
+  // descobrir e renovar um token vencido.
   var remover = {
     triggerImportacaoAutomatica: true,
-    renovacaoProativaTokens: true,
     atualizarStatusStravaEmCadastro: true,
     sincronizarFilaWhatsAppCadastros: true
   };
@@ -728,7 +731,7 @@ function migrarTriggersParaTempoReal() {
     .timeBased().everyDays(1).atHour(3).create();
   return {
     ok: true,
-    preservados: ['monitorarStravaOk', 'limparLogsAntigos'],
+    preservados: ['renovacaoProativaTokens', 'monitorarStravaOk', 'limparLogsAntigos'],
     reconciliacao: 'triggerImportacaoAutomatica diária às 03h'
   };
 }
