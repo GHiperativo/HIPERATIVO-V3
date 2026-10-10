@@ -1,0 +1,4 @@
+-- HISTORICAL MARKER ONLY. Intentionally no-op on replay.
+-- Production migration history used this version/name for the final P0 health check after
+-- subscription restoration, token renewal and backfill on 2026-10-10.
+-- Runtime health checks belong to operations, not schema replay.

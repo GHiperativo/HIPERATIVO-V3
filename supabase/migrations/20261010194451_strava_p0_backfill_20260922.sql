@@ -1,0 +1,4 @@
+-- HISTORICAL MARKER ONLY. Intentionally no-op on replay.
+-- Production migration history used this version/name for the one-time Strava backfill
+-- from 2026-09-22 executed during P0 recovery. Result: 28/28 athletes ok, 145 inserted,
+-- 10 updated, zero identity conflicts. Backfills require an explicit operational gate.

@@ -1,0 +1,4 @@
+-- HISTORICAL MARKER ONLY. Intentionally no-op on replay.
+-- Production migration history used this version/name to invoke a one-time Strava health check
+-- immediately after the rotated client secret was placed in Vault on 2026-10-10.
+-- Operational HTTP calls must never be replayed automatically by db push/restore.

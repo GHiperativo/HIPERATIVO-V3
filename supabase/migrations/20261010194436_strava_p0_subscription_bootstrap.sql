@@ -1,0 +1,4 @@
+-- HISTORICAL MARKER ONLY. Intentionally no-op on replay.
+-- Production migration history used this version/name for the one-time creation/validation
+-- of Strava push subscription 376140 on 2026-10-10.
+-- Subscription changes are operational actions and must not run during db push/restore.
