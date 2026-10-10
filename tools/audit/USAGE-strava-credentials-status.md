@@ -28,3 +28,5 @@ npm run audit:strava-credentials
 ```
 
 A ferramenta termina com código `1` quando `vault_only` não está ativo ou quando as referências do Vault não estão completas.
+
+O workflow `Tooling Check` valida automaticamente os testes sempre que arquivos em `tools/` forem alterados.
