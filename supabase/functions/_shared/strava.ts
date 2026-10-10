@@ -3,13 +3,23 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 export type TokenRow = {
   ath_id: string;
   nome: string | null;
-  access_token: string | null;
-  refresh_token: string;
+  access_token?: string | null;
+  refresh_token?: string | null;
   expires_at: number | null;
   scope: string | null;
   strava_id: string | null;
   ult_atu: string | null;
   status: string | null;
+  token_version?: number | null;
+};
+
+type RefreshClaim = {
+  claimed: boolean;
+  reason?: string;
+  lease_id?: string;
+  refresh_token?: string;
+  token_version?: number;
+  retry_after_seconds?: number;
 };
 
 export type WebhookConfig = {
@@ -22,6 +32,7 @@ export type WebhookConfig = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
+const TOKEN_META_SELECT = "ath_id,nome,expires_at,scope,strava_id,ult_atu,status,token_version";
 
 const BASE_HEADERS = {
   apikey: SERVICE_KEY,
@@ -74,16 +85,24 @@ export async function internalAuthorized(req: Request): Promise<boolean> {
 }
 
 export async function getTokenByOwner(ownerId: number): Promise<TokenRow | null> {
-  const response = await rest(`tokens_strava?strava_id=eq.${encodeURIComponent(String(ownerId))}&select=ath_id,nome,access_token,refresh_token,expires_at,scope,strava_id,ult_atu,status&limit=1`);
+  const response = await rest(`tokens_strava?strava_id=eq.${encodeURIComponent(String(ownerId))}&select=${TOKEN_META_SELECT}&limit=1`);
   if (!response.ok) throw new Error(`token lookup HTTP ${response.status}`);
   const rows = await response.json() as TokenRow[];
   return rows[0] ?? null;
 }
 
 export async function listTokens(): Promise<TokenRow[]> {
-  const response = await rest("tokens_strava?select=ath_id,nome,access_token,refresh_token,expires_at,scope,strava_id,ult_atu,status&order=ath_id.asc");
+  const response = await rest(`tokens_strava?select=${TOKEN_META_SELECT}&order=ath_id.asc`);
   if (!response.ok) throw new Error(`tokens list HTTP ${response.status}`);
   return await response.json() as TokenRow[];
+}
+
+async function getTokenCredentials(athId: string): Promise<TokenRow> {
+  const response = await rest(`tokens_strava?ath_id=eq.${encodeURIComponent(athId)}&select=ath_id,nome,access_token,refresh_token,expires_at,scope,strava_id,ult_atu,status,token_version&limit=1`);
+  if (!response.ok) throw new Error(`token credential lookup HTTP ${response.status}`);
+  const rows = await response.json() as TokenRow[];
+  if (!rows.length) throw new Error(`token row unavailable for ${athId}`);
+  return rows[0];
 }
 
 async function patchToken(athId: string, values: Record<string, unknown>): Promise<void> {
@@ -95,46 +114,142 @@ async function patchToken(athId: string, values: Record<string, unknown>): Promi
   if (!response.ok) throw new Error(`token update HTTP ${response.status}`);
 }
 
-export async function validAccessToken(row: TokenRow, force = false): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  if (!force && row.access_token && Number(row.expires_at ?? 0) > now + 300) return row.access_token;
-  if (!row.refresh_token || row.refresh_token.trim().length < 10) throw new Error(`refresh token unavailable for ${row.ath_id}`);
+function copyTokenState(target: TokenRow, source: TokenRow): void {
+  target.access_token = source.access_token ?? null;
+  target.refresh_token = source.refresh_token ?? null;
+  target.expires_at = source.expires_at;
+  target.status = source.status;
+  target.ult_atu = source.ult_atu;
+  target.token_version = source.token_version;
+}
 
-  const cred = await runtimeCredentials();
-  const form = new URLSearchParams({
-    client_id: cred.client_id,
-    client_secret: cred.client_secret,
-    grant_type: "refresh_token",
-    refresh_token: row.refresh_token,
-  });
-  const response = await fetch("https://www.strava.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-  });
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* no-op */ }
-  if (!response.ok || !body.access_token || !body.expires_at) {
-    throw new Error(`Strava token refresh HTTP ${response.status}: ${String(body.message ?? body.error ?? "").slice(0, 140)}`);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForConcurrentRefresh(row: TokenRow): Promise<string | null> {
+  const initialVersion = Number(row.token_version ?? 0);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await sleep(400);
+    const fresh = await getTokenCredentials(row.ath_id);
+    const now = Math.floor(Date.now() / 1000);
+    if (Number(fresh.token_version ?? 0) > initialVersion && fresh.access_token && Number(fresh.expires_at ?? 0) > now + 60) {
+      copyTokenState(row, fresh);
+      return fresh.access_token;
+    }
+  }
+  return null;
+}
+
+async function commitRefreshWithRecovery(
+  row: TokenRow,
+  claim: RefreshClaim,
+  access: string,
+  refresh: string,
+  expires: number,
+): Promise<void> {
+  const leaseId = String(claim.lease_id ?? "");
+  const previousVersion = Number(claim.token_version ?? row.token_version ?? 0);
+  let lastError = "";
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const committed = await rpc<boolean>("strava_token_commit_refresh", {
+        p_ath_id: row.ath_id,
+        p_lease_id: leaseId,
+        p_access_token: access,
+        p_refresh_token: refresh,
+        p_expires_at: expires,
+      });
+      if (committed) return;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
+    const current = await getTokenCredentials(row.ath_id).catch(() => null);
+    if (current && Number(current.token_version ?? 0) > previousVersion && Number(current.expires_at ?? 0) >= expires - 5) {
+      copyTokenState(row, current);
+      return;
+    }
+    await sleep(300 * (attempt + 1));
   }
 
-  const access = String(body.access_token);
-  const refresh = String(body.refresh_token ?? row.refresh_token);
-  const expires = Number(body.expires_at);
-  await patchToken(row.ath_id, {
-    access_token: access,
-    refresh_token: refresh,
-    expires_at: expires,
-    status: "Renovado",
-    ult_atu: new Date().toISOString(),
+  throw new Error(`token refresh commit failed${lastError ? `: ${lastError.slice(0, 120)}` : ""}`);
+}
+
+export async function validAccessToken(row: TokenRow, force = false): Promise<string> {
+  const current = await getTokenCredentials(row.ath_id);
+  copyTokenState(row, current);
+  const now = Math.floor(Date.now() / 1000);
+
+  // Strava documents a one-hour refresh window. Staying ahead of it avoids an expiry gap.
+  if (!force && current.access_token && Number(current.expires_at ?? 0) > now + 3600) return current.access_token;
+
+  const claim = await rpc<RefreshClaim>("strava_token_claim_refresh", {
+    p_ath_id: row.ath_id,
+    p_lease_seconds: 90,
   });
-  row.access_token = access;
-  row.refresh_token = refresh;
-  row.expires_at = expires;
-  row.status = "Renovado";
-  row.ult_atu = new Date().toISOString();
-  return access;
+
+  if (!claim.claimed) {
+    if (claim.reason === "busy") {
+      const concurrent = await waitForConcurrentRefresh(row);
+      if (concurrent) return concurrent;
+    }
+    throw new Error(`refresh unavailable for ${row.ath_id}: ${claim.reason ?? "unknown"}`);
+  }
+
+  const leaseId = String(claim.lease_id ?? "");
+  const refreshToken = String(claim.refresh_token ?? "");
+  if (!leaseId || refreshToken.length < 10) {
+    await rpc<boolean>("strava_token_fail_refresh", {
+      p_ath_id: row.ath_id,
+      p_lease_id: leaseId,
+      p_error: "invalid refresh lease payload",
+    }).catch(() => false);
+    throw new Error(`refresh lease invalid for ${row.ath_id}`);
+  }
+
+  try {
+    const cred = await runtimeCredentials();
+    const form = new URLSearchParams({
+      client_id: cred.client_id,
+      client_secret: cred.client_secret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    });
+    const response = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const text = await response.text();
+    let body: Record<string, unknown> = {};
+    try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* no-op */ }
+    if (!response.ok || !body.access_token || !body.expires_at) {
+      throw new Error(`Strava token refresh HTTP ${response.status}: ${String(body.message ?? body.error ?? "").slice(0, 140)}`);
+    }
+
+    const access = String(body.access_token);
+    const refresh = String(body.refresh_token ?? refreshToken);
+    const expires = Number(body.expires_at);
+    await commitRefreshWithRecovery(row, claim, access, refresh, expires);
+
+    row.access_token = access;
+    row.refresh_token = refresh;
+    row.expires_at = expires;
+    row.status = "Renovado";
+    row.ult_atu = new Date().toISOString();
+    row.token_version = Number(claim.token_version ?? 0) + 1;
+    return access;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await rpc<boolean>("strava_token_fail_refresh", {
+      p_ath_id: row.ath_id,
+      p_lease_id: leaseId,
+      p_error: message.slice(0, 500),
+    }).catch(() => false);
+    throw error;
+  }
 }
 
 export async function stravaGet(path: string, row: TokenRow): Promise<{response: Response; body: unknown}> {
