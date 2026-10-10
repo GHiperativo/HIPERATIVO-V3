@@ -68,15 +68,48 @@ async function subscription(): Promise<Response> {
 
 type SyncOptions = { after?: number; before?: number; max_pages?: number; per_page?: number; athlete_limit?: number };
 
+function activeTokens(tokens: Awaited<ReturnType<typeof listTokens>>, athleteLimit = 1000) {
+  return tokens
+    .filter((token) => String(token.status ?? "").toLowerCase() !== "inativo" && !String(token.status ?? "").toLowerCase().startsWith("revogado"))
+    .slice(0, Math.max(1, Math.min(Number(athleteLimit || 1000), 1000)));
+}
+
+async function maintainTokens(athleteLimit = 1000): Promise<Response> {
+  const tokens = activeTokens(await listTokens(), athleteLimit);
+  const result = {
+    ok: true,
+    athletes_total: tokens.length,
+    athletes_ok: 0,
+    athletes_failed: 0,
+    refreshed: 0,
+    already_valid: 0,
+    errors: [] as Array<{ath_id: string; error: string}>,
+  };
+
+  for (const token of tokens) {
+    const beforeVersion = Number(token.token_version ?? 0);
+    try {
+      await validAccessToken(token);
+      if (Number(token.token_version ?? 0) > beforeVersion) result.refreshed++;
+      else result.already_valid++;
+      result.athletes_ok++;
+    } catch (error) {
+      result.athletes_failed++;
+      result.errors.push({ ath_id: token.ath_id, error: (error instanceof Error ? error.message : String(error)).slice(0, 220) });
+    }
+  }
+
+  if (result.athletes_failed > 0) result.ok = false;
+  return json(result, 200);
+}
+
 async function syncActivities(options: SyncOptions): Promise<Response> {
   const after = Number.isFinite(options.after) ? Number(options.after) : Math.floor(Date.now() / 1000) - 2 * 86400;
   const before = Number.isFinite(options.before) ? Number(options.before) : Math.floor(Date.now() / 1000) + 60;
   const maxPages = Math.max(1, Math.min(Number(options.max_pages ?? 3), 10));
   const perPage = Math.max(1, Math.min(Number(options.per_page ?? 100), 100));
   const athleteLimit = Math.max(1, Math.min(Number(options.athlete_limit ?? 1000), 1000));
-  const tokens = (await listTokens())
-    .filter((token) => String(token.status ?? "").toLowerCase() !== "inativo" && !String(token.status ?? "").toLowerCase().startsWith("revogado"))
-    .slice(0, athleteLimit);
+  const tokens = activeTokens(await listTokens(), athleteLimit);
 
   const result = {
     ok: true,
@@ -138,15 +171,35 @@ async function health(): Promise<Response> {
   try { await runtimeCredentials(); credentials = true; } catch { credentials = false; }
   const tokens = await listTokens();
   const now = Math.floor(Date.now() / 1000);
+  const auditResponse = await rest("tokens_strava?select=last_refresh_ok_at,last_refresh_error_at,refresh_lease_until");
+  const auditRows = auditResponse.ok ? await auditResponse.json() as Array<Record<string, unknown>> : [];
+  const nowMs = Date.now();
+  const errors24h = auditRows.filter((row) => {
+    const errorAt = Date.parse(String(row.last_refresh_error_at ?? ""));
+    const okAt = Date.parse(String(row.last_refresh_ok_at ?? ""));
+    return Number.isFinite(errorAt) && nowMs - errorAt <= 86400000 && (!Number.isFinite(okAt) || errorAt > okAt);
+  }).length;
+  const activeLeases = auditRows.filter((row) => {
+    const until = Date.parse(String(row.refresh_lease_until ?? ""));
+    return Number.isFinite(until) && until > nowMs;
+  }).length;
+  const active = activeTokens(tokens).length;
+  const expiring1h = activeTokens(tokens).filter((token) => Number(token.expires_at ?? 0) <= now + 3600).length;
+  const ok = credentials && config.subscription_id !== null;
+
   return json({
-    ok: credentials,
+    ok,
     credentials_configured: credentials,
     subscription_id: config.subscription_id,
     mode: config.modo,
     tokens: tokens.length,
+    active_tokens: active,
     expired_tokens: tokens.filter((token) => Number(token.expires_at ?? 0) <= now).length,
+    expiring_within_1h: expiring1h,
     inactive_tokens: tokens.filter((token) => String(token.status ?? "").toLowerCase() === "inativo").length,
-  }, credentials ? 200 : 503);
+    refresh_errors_24h: errors24h,
+    active_refresh_leases: activeLeases,
+  }, ok ? 200 : 503);
 }
 
 Deno.serve(async (req: Request) => {
@@ -158,6 +211,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "health") return await health();
     if (action === "subscription") return await subscription();
+    if (action === "refresh_tokens") return await maintainTokens(Number(body.athlete_limit ?? 1000));
     if (action === "sync" || action === "backfill") {
       const afterValue = body.after;
       const beforeValue = body.before;
