@@ -10,6 +10,8 @@
     "runtime:check": "node scripts/check-runtime.mjs",
     "audit:strava-credentials": "node tools/audit/strava-credentials-status.mjs",
     "audit:platform-health": "node tools/audit/platform-health.mjs",
+    "snapshot:platform-health": "node tools/snapshot/platform-health-snapshot.mjs capture",
+    "snapshot:compare": "node tools/snapshot/platform-health-snapshot.mjs compare",
     "test:tooling": "node --test tools/**/*.test.mjs"
   }
 }
