@@ -7,6 +7,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "runtime:check": "node scripts/check-runtime.mjs"
+    "runtime:check": "node scripts/check-runtime.mjs",
+    "audit:strava-credentials": "node tools/audit/strava-credentials-status.mjs",
+    "test:tooling": "node --test tools/**/*.test.mjs"
   }
 }
