@@ -10,6 +10,7 @@
     "runtime:check": "node scripts/check-runtime.mjs",
     "audit:strava-credentials": "node tools/audit/strava-credentials-status.mjs",
     "audit:platform-health": "node tools/audit/platform-health.mjs",
+    "audit:supabase-migrations": "node tools/audit/supabase-migration-ledger.mjs",
     "snapshot:platform-health": "node tools/snapshot/platform-health-snapshot.mjs capture",
     "snapshot:compare": "node tools/snapshot/platform-health-snapshot.mjs compare",
     "snapshot:regression": "node tools/snapshot/platform-health-regression.mjs",
