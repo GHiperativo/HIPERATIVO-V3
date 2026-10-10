@@ -8,6 +8,7 @@ on:
       - 'chore/**'
     paths:
       - 'tools/**'
+      - 'snapshots/platform-health/**'
       - 'package.json'
       - '.nvmrc'
       - '.github/workflows/tooling-check.yml'
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - 'tools/**'
+      - 'snapshots/platform-health/**'
       - 'package.json'
       - '.nvmrc'
       - '.github/workflows/tooling-check.yml'
@@ -43,3 +45,6 @@ jobs:
 
       - name: Run tooling tests
         run: npm run test:tooling
+
+      - name: Detect Platform Health regressions
+        run: npm run snapshot:regression -- --auto

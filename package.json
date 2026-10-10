@@ -12,6 +12,7 @@
     "audit:platform-health": "node tools/audit/platform-health.mjs",
     "snapshot:platform-health": "node tools/snapshot/platform-health-snapshot.mjs capture",
     "snapshot:compare": "node tools/snapshot/platform-health-snapshot.mjs compare",
+    "snapshot:regression": "node tools/snapshot/platform-health-regression.mjs",
     "test:tooling": "node --test tools/**/*.test.mjs"
   }
 }
