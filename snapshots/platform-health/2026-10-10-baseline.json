@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "verified_baseline",
+  "captured_at": "2026-10-10",
+  "overall": "healthy",
+  "platform_commit": "c95efd2048f5ae1983f65a1e60f919500d6d3d95",
+  "checks": {
+    "github_ci": {
+      "node_runtime_check": "success",
+      "tooling_check": "success"
+    },
+    "supabase": {
+      "status": "ok",
+      "migration_count": 39,
+      "strava_token_rows": 30,
+      "vault_only_rows": 30,
+      "complete_vault_refs": 30
+    }
+  },
+  "safety": {
+    "contains_tokens": false,
+    "contains_vault_ids": false,
+    "contains_service_role_key": false,
+    "contains_athlete_ids": false
+  }
+}
