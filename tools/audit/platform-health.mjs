@@ -52,17 +52,24 @@ export async function checkSupabaseReachability({ supabaseUrl, serviceRoleKey, f
   }
 
   const baseUrl = supabaseUrl.replace(/\/$/, '');
-  const params = new URLSearchParams({ select: 'token_version', limit: '1' });
-  const response = await fetchImpl(`${baseUrl}/rest/v1/tokens_strava?${params.toString()}`, {
+  const response = await fetchImpl(`${baseUrl}/rest/v1/rpc/platform_health_ping`, {
+    method: 'POST',
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
       Accept: 'application/json',
+      'Content-Type': 'application/json',
     },
+    body: '{}',
   });
 
   if (!response.ok) {
     return { status: 'error', http_status: response.status };
+  }
+
+  const payload = await response.json();
+  if (payload !== 'ok') {
+    return { status: 'error', http_status: response.status, reason: 'unexpected_probe_response' };
   }
 
   return { status: 'ok', http_status: response.status };
