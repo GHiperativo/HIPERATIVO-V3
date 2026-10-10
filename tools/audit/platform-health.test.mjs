@@ -17,6 +17,51 @@ test('Supabase com configuração incompleta falha', async () => {
   assert.equal(result.reason, 'incomplete_credentials');
 });
 
+test('Supabase usa probe dedicado sem depender de tokens_strava', async () => {
+  let request;
+  const fetchImpl = async (url, options) => {
+    request = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return 'ok';
+      },
+    };
+  };
+
+  const result = await checkSupabaseReachability({
+    supabaseUrl: 'https://example.supabase.co/',
+    serviceRoleKey: 'test-key',
+    fetchImpl,
+  });
+
+  assert.deepEqual(result, { status: 'ok', http_status: 200 });
+  assert.equal(request.url, 'https://example.supabase.co/rest/v1/rpc/platform_health_ping');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.body, '{}');
+  assert.equal(request.url.includes('tokens_strava'), false);
+});
+
+test('Supabase rejeita resposta inesperada do probe', async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return 'unexpected';
+    },
+  });
+
+  const result = await checkSupabaseReachability({
+    supabaseUrl: 'https://example.supabase.co',
+    serviceRoleKey: 'test-key',
+    fetchImpl,
+  });
+
+  assert.equal(result.status, 'error');
+  assert.equal(result.reason, 'unexpected_probe_response');
+});
+
 test('auditoria Strava preserva status do check sem expor referências internas', async () => {
   const fetchImpl = async () => ({
     ok: true,
