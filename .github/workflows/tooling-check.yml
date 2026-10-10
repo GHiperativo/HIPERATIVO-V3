@@ -1,0 +1,44 @@
+name: Tooling Check
+
+on:
+  push:
+    branches:
+      - main
+      - 'chore/**'
+    paths:
+      - 'tools/**'
+      - 'package.json'
+      - '.nvmrc'
+      - '.github/workflows/tooling-check.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tools/**'
+      - 'package.json'
+      - '.nvmrc'
+      - '.github/workflows/tooling-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    name: Validate tooling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Validate runtime
+        run: npm run runtime:check
+
+      - name: Run tooling tests
+        run: npm run test:tooling
