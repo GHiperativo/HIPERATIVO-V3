@@ -9,6 +9,7 @@
   "scripts": {
     "runtime:check": "node scripts/check-runtime.mjs",
     "audit:strava-credentials": "node tools/audit/strava-credentials-status.mjs",
+    "audit:platform-health": "node tools/audit/platform-health.mjs",
     "test:tooling": "node --test tools/**/*.test.mjs"
   }
 }
