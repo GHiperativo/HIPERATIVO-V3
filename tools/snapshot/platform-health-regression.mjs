@@ -73,15 +73,17 @@ export function evaluateRegression(before, after) {
     pushTransition(issues, { path: 'checks.supabase.status', before: b.supabase?.status, after: a.supabase?.status });
     pushTransition(issues, { path: 'checks.strava_credentials.status', before: b.strava_credentials?.status, after: a.strava_credentials?.status });
 
-    if (b.strava_credentials?.vault_only === true && a.strava_credentials?.vault_only !== true) {
-      issues.push(issue('error', 'VAULT_ONLY_DISABLED', 'checks.strava_credentials.vault_only', true, a.strava_credentials?.vault_only, 'vault_only deixou de estar ativo.'));
-    }
-    if (b.strava_credentials?.vault_reference === 'complete' && a.strava_credentials?.vault_reference !== 'complete') {
-      issues.push(issue('error', 'VAULT_REFERENCE_REGRESSION', 'checks.strava_credentials.vault_reference', 'complete', a.strava_credentials?.vault_reference, 'Referências do Vault deixaram de estar completas.'));
-    }
-    if (Number.isFinite(b.strava_credentials?.token_version) && Number.isFinite(a.strava_credentials?.token_version)
-      && a.strava_credentials.token_version < b.strava_credentials.token_version) {
-      issues.push(issue('error', 'TOKEN_VERSION_DECREASED', 'checks.strava_credentials.token_version', b.strava_credentials.token_version, a.strava_credentials.token_version, 'token_version diminuiu.'));
+    if (a.strava_credentials?.status === 'ok') {
+      if (b.strava_credentials?.vault_only === true && a.strava_credentials?.vault_only !== true) {
+        issues.push(issue('error', 'VAULT_ONLY_DISABLED', 'checks.strava_credentials.vault_only', true, a.strava_credentials?.vault_only, 'vault_only deixou de estar ativo.'));
+      }
+      if (b.strava_credentials?.vault_reference === 'complete' && a.strava_credentials?.vault_reference !== 'complete') {
+        issues.push(issue('error', 'VAULT_REFERENCE_REGRESSION', 'checks.strava_credentials.vault_reference', 'complete', a.strava_credentials?.vault_reference, 'Referências do Vault deixaram de estar completas.'));
+      }
+      if (Number.isFinite(b.strava_credentials?.token_version) && Number.isFinite(a.strava_credentials?.token_version)
+        && a.strava_credentials.token_version < b.strava_credentials.token_version) {
+        issues.push(issue('error', 'TOKEN_VERSION_DECREASED', 'checks.strava_credentials.token_version', b.strava_credentials.token_version, a.strava_credentials.token_version, 'token_version diminuiu.'));
+      }
     }
   }
 
