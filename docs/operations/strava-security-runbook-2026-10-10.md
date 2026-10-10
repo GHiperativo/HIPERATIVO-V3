@@ -234,3 +234,36 @@ Base: `fix/strava-p0-red-20261010` / PR #14.
 Merge to `main` remains a separate approval gate.
 
 Next executable step after the callback-domain setting is updated: re-run the Strava authorization probe, issue one controlled reconnect link, complete one real OAuth round-trip, verify Vault-only persistence and then declare the new connection path operational.
+
+
+## Authenticated self-service connection | 2026-10-10
+
+Status: backend contract deployed and hardened. UI activation remains gated by the participant access rollout.
+
+### What this replaces
+
+Manual OAuth-link generation and any future browser flow that would submit an arbitrary `ath_id`.
+
+### New path
+
+`participant JWT -> strava-connect -> Supabase Auth validation -> service-role-only identity resolver -> one-use OAuth ticket -> Strava -> strava-oauth -> Vault`
+
+- `strava-connect`: v2, ACTIVE, `verify_jwt=true`.
+- The browser never supplies `ath_id`.
+- The Edge Function validates the bearer session against `/auth/v1/user` before asking for a ticket.
+- `strava_oauth_issue_user_ticket(uuid, integer)` resolves `access_memberships -> participants -> ath_id_v3` and requires active access plus `identity_status='verified'`.
+- That RPC is `SECURITY DEFINER`, `search_path=''`, and executable only by `service_role`; `anon` and `authenticated` cannot call it directly.
+- The first client-callable draft RPC was removed by the hardening migration after Security Advisor flagged the surface.
+- Security Advisor after hardening shows no new self-service warning; the pre-existing `pg_net` placement and leaked-password-protection warnings remain separate work.
+- CORS preflight returns HTTP 204 and anonymous POST returns HTTP 401.
+
+Production migrations:
+
+- `20261010212334_strava_oauth_self_service`
+- `20261010212631_strava_oauth_self_service_hardening`
+
+### Activation gate
+
+The currently active Hiper Reserva membership is administrative and intentionally has no `participant_id`. Verified participants mapped to V3 exist, but no real participant-auth membership was available for a positive browser-session test in this step. Do not bind the admin account to a participant just to manufacture the test.
+
+Next executable step: activate one legitimate participant membership through the official access flow, then exercise `strava-connect` with that participant session before mounting the control broadly in the participant portal.
