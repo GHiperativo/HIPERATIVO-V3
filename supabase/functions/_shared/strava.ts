@@ -98,11 +98,9 @@ export async function listTokens(): Promise<TokenRow[]> {
 }
 
 async function getTokenCredentials(athId: string): Promise<TokenRow> {
-  const response = await rest(`tokens_strava?ath_id=eq.${encodeURIComponent(athId)}&select=ath_id,nome,access_token,expires_at,scope,strava_id,ult_atu,status,token_version&limit=1`);
-  if (!response.ok) throw new Error(`token credential lookup HTTP ${response.status}`);
-  const rows = await response.json() as TokenRow[];
-  if (!rows.length) throw new Error(`token row unavailable for ${athId}`);
-  return rows[0];
+  const row = await rpc<TokenRow | null>("strava_token_get_access", { p_ath_id: athId });
+  if (!row?.ath_id) throw new Error(`token row unavailable for ${athId}`);
+  return row;
 }
 
 async function patchToken(athId: string, values: Record<string, unknown>): Promise<void> {
