@@ -1,0 +1,46 @@
+name: Node Runtime Check
+
+on:
+  push:
+    branches:
+      - main
+      - 'chore/**'
+    paths:
+      - '.nvmrc'
+      - 'package.json'
+      - 'scripts/**'
+      - '.github/workflows/node-runtime.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.nvmrc'
+      - 'package.json'
+      - 'scripts/**'
+      - '.github/workflows/node-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    name: Validate Node.js runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Show versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Validate runtime
+        run: npm run runtime:check

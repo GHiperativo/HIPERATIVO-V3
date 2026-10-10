@@ -1,0 +1,12 @@
+{
+  "name": "hiperativo-v3",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Base técnica da Plataforma Hiperativo.",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "runtime:check": "node scripts/check-runtime.mjs"
+  }
+}
