@@ -13,6 +13,7 @@ Centralizar scripts administrativos, auditorias, migrações e utilitários que 
 - `strava/`: integrações, diagnósticos e utilitários relacionados ao Strava.
 - `migration/`: ferramentas temporárias e repetíveis de migração entre sistemas.
 - `audit/`: verificações somente leitura, integridade e segurança.
+- `incident/`: triagem assistida e read-only para incidentes, sem ações corretivas automáticas.
 - `scripts/`: utilitários Node.js genéricos de apoio.
 
 ## Regras
@@ -23,6 +24,7 @@ Centralizar scripts administrativos, auditorias, migrações e utilitários que 
 4. Scripts que escrevem em produção devem exigir intenção explícita e validações de segurança.
 5. Sempre que possível, oferecer modo somente leitura ou `dry-run` antes de qualquer alteração.
 6. O legado continua funcionando durante a transição; tooling novo não deve criar dependência obrigatória prematura.
+7. Comandos `incident:*` permanecem read-only nesta fase e não executam correção automática.
 
 ## Runtime
 
