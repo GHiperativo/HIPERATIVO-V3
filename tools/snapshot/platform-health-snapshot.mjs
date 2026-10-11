@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildHealthReport } from '../audit/platform-health.mjs';
 
-const SNAPSHOT_SCHEMA_VERSION = 1;
+const SNAPSHOT_SCHEMA_VERSION = 2;
 
 export function sanitizeHealthReport(report) {
   return {
@@ -12,6 +12,12 @@ export function sanitizeHealthReport(report) {
     kind: 'platform_health',
     captured_at: report.checked_at ?? new Date().toISOString(),
     overall: report.overall ?? 'unknown',
+    verification: report.verification ?? 'unknown',
+    coverage: {
+      local: report.coverage?.local ?? 'unknown',
+      supabase: report.coverage?.supabase ?? 'unknown',
+      strava: report.coverage?.strava ?? 'unknown',
+    },
     checks: {
       runtime: {
         status: report.local?.runtime?.status ?? 'unknown',
