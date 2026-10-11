@@ -7,6 +7,8 @@ function platform(overrides = {}) {
   return {
     kind: 'platform_health',
     overall: 'healthy',
+    verification: 'full',
+    coverage: { local: 'complete', supabase: 'complete', strava: 'complete' },
     checks: {
       runtime: { status: 'ok', node_major: 24, expected_node_major: 24 },
       repository: { status: 'ok', required_paths_missing: [], migration_count: 40 },
@@ -51,9 +53,29 @@ test('detecta regressão de Vault e migrations', () => {
   assert.ok(codes.includes('TOKEN_VERSION_DECREASED'));
 });
 
-test('credencial remota skipped vira warning, não regressão', () => {
+test('perda de coverage vira warning explícito, não erro', () => {
   const before = platform();
   const after = platform({
+    verification: 'partial',
+    coverage: { local: 'complete', supabase: 'complete', strava: 'skipped' },
+    checks: {
+      ...before.checks,
+      strava_credentials: { status: 'skipped' },
+    },
+  });
+  const result = evaluateRegression(before, after);
+  const codes = result.issues.map((entry) => entry.code);
+  assert.equal(result.status, 'warning');
+  assert.equal(result.errors, 0);
+  assert.ok(codes.includes('COVERAGE_REGRESSION'));
+  assert.ok(codes.includes('STATUS_UNVERIFIED'));
+});
+
+test('credenciais remotas skipped viram warning, não regressão', () => {
+  const before = platform();
+  const after = platform({
+    verification: 'local_only',
+    coverage: { local: 'complete', supabase: 'skipped', strava: 'skipped' },
     checks: {
       ...before.checks,
       supabase: { status: 'skipped' },
@@ -63,7 +85,8 @@ test('credencial remota skipped vira warning, não regressão', () => {
   const result = evaluateRegression(before, after);
   assert.equal(result.status, 'warning');
   assert.equal(result.errors, 0);
-  assert.equal(result.warnings, 2);
+  assert.equal(result.warnings, 3);
+  assert.ok(result.issues.some((entry) => entry.code === 'COVERAGE_REGRESSION'));
 });
 
 test('baseline verificado aceita primeiro snapshot automático sem credenciais como warning', () => {
@@ -76,6 +99,8 @@ test('baseline verificado aceita primeiro snapshot automático sem credenciais c
     },
   };
   const after = platform({
+    verification: 'local_only',
+    coverage: { local: 'complete', supabase: 'skipped', strava: 'skipped' },
     checks: {
       ...platform().checks,
       supabase: { status: 'skipped' },
@@ -85,6 +110,15 @@ test('baseline verificado aceita primeiro snapshot automático sem credenciais c
   const result = evaluateRegression(before, after);
   assert.equal(result.status, 'warning');
   assert.equal(result.errors, 0);
+  assert.ok(result.issues.some((entry) => entry.code === 'COVERAGE_REGRESSION'));
+});
+
+test('snapshot legado sem verification não gera falsa regressão de coverage', () => {
+  const before = platform();
+  delete before.verification;
+  delete before.coverage;
+  const result = evaluateRegression(before, platform());
+  assert.equal(result.status, 'clean');
 });
 
 test('baseline agregado falha quando cobertura Vault fica incompleta', () => {
