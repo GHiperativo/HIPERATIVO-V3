@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   checkSupabaseReachability,
   checkStravaCredentialHealth,
+  computeCoverage,
   computeOverallStatus,
+  computeVerification,
 } from './platform-health.mjs';
 
 test('Supabase sem credenciais fica skipped', async () => {
@@ -102,4 +104,37 @@ test('overall fica degraded diante de qualquer erro', () => {
     strava_credentials: { status: 'error' },
   };
   assert.equal(computeOverallStatus(report), 'degraded');
+});
+
+test('coverage distingue check executado de check não executado', () => {
+  const coverage = computeCoverage({
+    supabase: { status: 'error', http_status: 503 },
+    strava_credentials: { status: 'skipped', reason: 'athlete_not_configured' },
+  });
+
+  assert.deepEqual(coverage, {
+    local: 'complete',
+    supabase: 'complete',
+    strava: 'skipped',
+  });
+  assert.equal(computeVerification(coverage), 'partial');
+});
+
+test('configuração incapaz de executar check conta como coverage incompleta', () => {
+  const coverage = computeCoverage({
+    supabase: { status: 'error', reason: 'incomplete_credentials' },
+    strava_credentials: { status: 'error', reason: 'supabase_credentials_missing' },
+  });
+
+  assert.deepEqual(coverage, {
+    local: 'complete',
+    supabase: 'incomplete',
+    strava: 'incomplete',
+  });
+  assert.equal(computeVerification(coverage), 'partial');
+});
+
+test('verification diferencia full de local_only', () => {
+  assert.equal(computeVerification({ local: 'complete', supabase: 'complete', strava: 'complete' }), 'full');
+  assert.equal(computeVerification({ local: 'complete', supabase: 'skipped', strava: 'skipped' }), 'local_only');
 });

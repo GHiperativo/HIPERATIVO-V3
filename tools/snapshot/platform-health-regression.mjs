@@ -16,6 +16,27 @@ function pushTransition(issues, { path, before, after, errorValues = ['error'], 
   }
 }
 
+const VERIFICATION_RANK = {
+  local_only: 1,
+  partial: 2,
+  full: 3,
+};
+
+function pushCoverageRegression(issues, before, after) {
+  const beforeRank = VERIFICATION_RANK[before];
+  const afterRank = VERIFICATION_RANK[after];
+  if (!beforeRank || !afterRank || afterRank >= beforeRank) return;
+
+  issues.push(issue(
+    'warning',
+    'COVERAGE_REGRESSION',
+    'verification',
+    before,
+    after,
+    `Cobertura de verificação regrediu de ${before} para ${after}.`,
+  ));
+}
+
 export function evaluateRegression(before, after) {
   const issues = [];
 
@@ -49,11 +70,16 @@ export function evaluateRegression(before, after) {
     } else if (strava?.status === 'skipped') {
       issues.push(issue('warning', 'STRAVA_UNVERIFIED', 'checks.strava_credentials.status', 'verified', 'skipped', 'Credenciais Strava não foram verificadas neste snapshot.'));
     }
+    if (after.verification === 'partial' || after.verification === 'local_only') {
+      issues.push(issue('warning', 'COVERAGE_REGRESSION', 'verification', 'full', after.verification, `Baseline verificado passou a ter cobertura ${after.verification}.`));
+    }
   }
 
   if (before.kind === 'platform_health' && after.kind === 'platform_health') {
     const b = before.checks ?? {};
     const a = after.checks ?? {};
+
+    pushCoverageRegression(issues, before.verification, after.verification);
 
     if (b.runtime?.status === 'ok' && (a.runtime?.status !== 'ok' || a.runtime?.node_major !== a.runtime?.expected_node_major)) {
       issues.push(issue('error', 'RUNTIME_REGRESSION', 'checks.runtime', b.runtime, a.runtime, 'Runtime Node.js regrediu.'));

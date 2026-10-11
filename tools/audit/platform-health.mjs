@@ -115,6 +115,27 @@ export function computeOverallStatus(report) {
   return statuses.includes('error') ? 'degraded' : 'healthy';
 }
 
+function remoteCoverage(check, incompleteReasons = []) {
+  if (check?.status === 'skipped') return 'skipped';
+  if (incompleteReasons.includes(check?.reason)) return 'incomplete';
+  return 'complete';
+}
+
+export function computeCoverage(report) {
+  return {
+    local: 'complete',
+    supabase: remoteCoverage(report.supabase, ['incomplete_credentials']),
+    strava: remoteCoverage(report.strava_credentials, ['supabase_credentials_missing']),
+  };
+}
+
+export function computeVerification(coverage) {
+  const remote = [coverage.supabase, coverage.strava];
+  if (remote.every((status) => status === 'complete')) return 'full';
+  if (remote.every((status) => status === 'skipped')) return 'local_only';
+  return 'partial';
+}
+
 export async function buildHealthReport({ env = process.env, cwd = process.cwd(), fetchImpl = fetch } = {}) {
   const local = inspectLocalFoundation({ cwd });
   const supabase = await checkSupabaseReachability({
@@ -135,9 +156,12 @@ export async function buildHealthReport({ env = process.env, cwd = process.cwd()
     supabase,
     strava_credentials: stravaCredentials,
   };
+  const coverage = computeCoverage(report);
 
   return {
     overall: computeOverallStatus(report),
+    verification: computeVerification(coverage),
+    coverage,
     ...report,
   };
 }
